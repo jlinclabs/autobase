@@ -1,0 +1,19 @@
+{
+  "name": "autobase-example-p2p-multiwriter",
+  "version": "1.0.0",
+  "description": "",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Jared Grippe",
+  "license": "MIT",
+  "root": true,
+  "dependencies": {
+    "hypercore-crypto": "^3.2.1",
+    "ora": "^6.1.0",
+    "prompt": "^1.2.2",
+    "autobase": "file:../../"
+  }
+}
