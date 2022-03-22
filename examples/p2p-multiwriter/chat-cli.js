@@ -11,6 +11,7 @@ import DHT from '@hyperswarm/dht'
 import Autobase from 'autobase'
 import ram from 'random-access-memory'
 
+import TOPIC_KEY from './topic.js'
 import users from './users.js'
 // import swarmKeypair from './swarm-keypair.js'
 
@@ -34,8 +35,6 @@ if (!(username in users)){
 }
 const user = users[username]
 
-// SAME AS IN ./hyperspace-server.js
-const TOPIC_KEY = Buffer.from('604d03ea2045c1adfcb6adad02d71667e03c27ec846fe4f5c4d912c10464aea0', 'hex')
 
 // persist cores per user but assume stored per app in the real world
 const STATE_DIR = dirname(fileURLToPath(import.meta.url)) + `/state/${username}`
@@ -46,30 +45,46 @@ async function main() {
   prompt.start()
   prompt.message = ''
 
-  spinner.start(`connecting as ${username}...`);
+  spinner.start(`connecting as ${username}...`)
 
   const corestore = new Corestore(STATE_DIR)
-  await corestore.ready()
+  // await corestore.ready()
 
+  const swarm = new Hyperswarm()
+  // Setup corestore replication
+  swarm.on('connection', (connection) => {
+    console.log('New connection from', socket.remotePublicKey.toString('hex'))
+    // console.log("REPLCIATE" + store.replicate)
+    store.replicate(connection)
+  })
 
+  const topicCore = corestore.get(TOPIC_KEY)
+  await topicCore.ready()
+  swarm.join(topicCore.discoveryKey)
+  // Make sure we have all the connections
+  await swarm.flush()
+  // Make sure we have the latest length
+  await topicCore.update()
+  console.log('topicCore', topicCore)
+  console.log('topicCore', await coreToArray(topicCore))
 
-  for (const username in users){
-    const { publicKey } = users[username]
-    users[username].core = corestore.get({
-      key: Buffer.from(publicKey, 'hex'),
-      secretKey: user.publicKey === publicKey
-        ? Buffer.from(user.secretKey, 'hex')
-        : undefined,
-    })
-  }
-  // console.log('users', users)
+  // for (const username in users){
+  //   const { publicKey } = users[username]
+  //   users[username].core = corestore.get({
+  //     key: Buffer.from(publicKey, 'hex'),
+  //     secretKey: user.publicKey === publicKey
+  //       ? Buffer.from(user.secretKey, 'hex')
+  //       : undefined,
+  //   })
+  // }
+  // // console.log('users', users)
 
-  // update all cores (Autobase does this now)
-  await Promise.all(Object.values(users).map(user => user.core.update()))
+  // // update all cores (Autobase does this now)
+  // await Promise.all(Object.values(users).map(user => user.core.update()))
 
-  for (const username in users){
-    console.log(username, await coreToArray(users[username].core))
-  }
+  // for (const username in users){
+  //   console.log(username, await coreToArray(users[username].core))
+  // }
 
 
 
@@ -88,29 +103,33 @@ async function main() {
   // await topicCore.ready()
 
 
-  const swarm = new Hyperswarm({
-    // keyPair: swarmKeypair,
-    // // bootstrap: ['host:port'],
-    // bootstrap: [
-    //   // { host: '127.0.0.1', port: 49736 },
-    //   { host: '0.0.0.0', port: 53091 },
-    // ]
-  })
-  swarm.on('connection', (socket) => {
-    console.log('New connection from', socket.remotePublicKey.toString('hex'))
-    corestore.replicate(true, socket)
-  })
-  const topicName = `autobase-example-chat-cli`
-  const topic = Buffer.from(sha256(topicName), 'hex')
-  const topicCore = corestore.get(TOPIC_KEY)
-  console.log({ topicCore })
-  await topicCore.ready()
-  await topicCore.update()
-  console.log('topicCore', await coreToArray(topicCore))
-  console.log(`joining topic ${topicCore.discoveryKey.toString('hex')}`)
-  swarm.join(topicCore.discoveryKey)
-  // swarm.join(topic)
-  await swarm.flush() // this takes a long time :(
+  // const swarm = new Hyperswarm({
+  //   // keyPair: swarmKeypair,
+  //   // // bootstrap: ['host:port'],
+  //   // bootstrap: [
+  //   //   // { host: '127.0.0.1', port: 49736 },
+  //   //   { host: '0.0.0.0', port: 53091 },
+  //   // ]
+  // })
+  // swarm.on('connection', (socket) => {
+  //   console.log('New connection from', socket.remotePublicKey.toString('hex'))
+  //   console.log("REPLCIATE" + store.replicate)
+  //   corestore.replicate(socket)
+  //   corestore.replicate(socket)
+  // })
+  // const topicName = `autobase-example-chat-cli`
+  // const topic = Buffer.from(sha256(topicName), 'hex')
+  // const topicCore = corestore.get(TOPIC_KEY)
+  // console.log({ topicCore })
+  // await topicCore.ready()
+  // await topicCore.update()
+  // console.log('topicCore', await coreToArray(topicCore))
+  // console.log(`joining topic ${topicCore.discoveryKey.toString('hex')}`)
+  // swarm.join(topicCore.discoveryKey)
+  // // swarm.join(topic)
+
+  // await swarm.flush() // this takes a long time :(
+
   process.once('SIGINT', () => swarm.destroy()) // for faster restarts
   process.on('exit', function () {
     swarm.destroy()
