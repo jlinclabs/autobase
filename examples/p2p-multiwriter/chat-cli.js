@@ -13,6 +13,51 @@ import ram from 'random-access-memory'
 
 import TOPIC_KEY from './topic.js'
 import users from './users.js'
+
+import TerminalKit from 'terminal-kit'
+
+// console.log(TerminalKit)
+const { terminal } = TerminalKit
+
+
+const username = process.argv[2]
+if (!(username in users)){
+  console.error(`invalid username "${username}"`);
+  process.exit(1);
+}
+const user = users[username]
+
+
+terminal.fullscreen()
+
+terminal.on('key', (name, matches, data) => {
+  // console.log('key', name, matches, data)
+  // Detect CTRL-C and exit 'manually'
+  if ( name === 'CTRL_C' ) shutdown()
+})
+await terminal.table(
+  [
+    ['HYPERCORE CHAT EXAMPLE'],
+    [`${username}>`],
+  ],
+  {
+    hasBorder: false,
+    // contentHasMarkup: true,
+    fit: true,
+    textAttr: { bgColor: 'default' } ,
+    firstCellTextAttr: { bgColor: 'blue' } ,
+    firstRowTextAttr: { bgColor: 'yellow' } ,
+    firstColumnTextAttr: { bgColor: 'red' } ,
+    checkerEvenCellTextAttr: { bgColor: 'gray' } ,
+  }
+)
+
+// terminal( 'Please enter your name: ' )
+
+// const name = await terminal.inputField({}).promise
+// terminal.green("\nYour name is '%s'\n" , name)
+
+
 // import swarmKeypair from './swarm-keypair.js'
 
 
@@ -28,12 +73,6 @@ import users from './users.js'
 // import { QueryableLog } from 'queryable-log'
 
 
-const username = process.argv[2]
-if (!(username in users)){
-  console.error(`invalid username "${username}"`);
-  process.exit(1);
-}
-const user = users[username]
 
 
 // persist cores per user but assume stored per app in the real world
@@ -115,11 +154,12 @@ async function main() {
     append({ disconnected: Date.now() })
   })
 
-  function getChatLogEntires(){
+  async function getChatLogEntires(){
     const entries = []
     for (const username in users){
-      coreToArray(users[username].core)
-      await coreToArray(topicCore)
+      for (const entry of await coreToArray(users[username].core)){
+        entries.push({...entry, username})
+      }
     }
     return entries
   }
@@ -136,7 +176,7 @@ async function main() {
     })
     console.log({ message })
 
-    for (const logEntry of getChatLogEntires()){
+    for (const logEntry of await getChatLogEntires()){
       console.log(logEntry)
     }
 
@@ -144,10 +184,10 @@ async function main() {
   }
 }
 
-main().catch(error => {
-  console.error(error)
-  process.exit(1)
-})
+// main().catch(error => {
+//   console.error(error)
+//   process.exit(1)
+// })
 
 
 
@@ -157,8 +197,10 @@ function sha256 (inp) {
 
 
 async function coreToArray(core){
-  const values = await linearizedValues(core)
-  return values.map(deserialize)
+  const array = []
+  for (let i = index.length - 1; i >= 0; i--)
+    array[i] = deserialize(await index.get(i))
+  return array
 }
 
 const serialize = payload => JSON.stringify(payload)
@@ -190,3 +232,4 @@ async function linearizedValues (index) {
   }
   return buf
 }
+

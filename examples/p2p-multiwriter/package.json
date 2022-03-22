@@ -17,6 +17,7 @@
     "hypercore-crypto": "^3.2.1",
     "hyperswarm": "git+https://github.com/hyperswarm/hyperswarm#v3.0.2",
     "ora": "^6.1.0",
-    "prompt": "^1.2.2"
+    "prompt": "^1.2.2",
+    "terminal-kit": "^2.4.0"
   }
 }
