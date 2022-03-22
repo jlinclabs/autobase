@@ -1,9 +1,20 @@
-import { Client as HyperspaceClient } from 'hyperspace'
-
+import { Server as HyperspaceServer } from 'hyperspace'
+import swarmKeypair from './swarm-keypair.js'
 async function main() {
-  const client = new HyperspaceClient()
-  await client.ready()
-  await client.status()
+  console.log(HyperspaceServer)
+  console.log(HyperspaceServer+'')
+  const server = new HyperspaceServer({
+    keyPair: swarmKeypair,
+    storage: './cores',
+    network: {
+      bootstrap: false,
+      preferredPort: 0
+    },
+    // noMigrate: true,
+    // noAnnounce: false,
+  })
+  await server.ready()
+  // console.log(server)
 }
 
 main().catch(error => {

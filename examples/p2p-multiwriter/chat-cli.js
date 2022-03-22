@@ -5,6 +5,7 @@ import prompt from 'prompt'
 import ora from 'ora'
 import crypto from 'crypto'
 import Corestore from 'corestore'
+import { Client as HyperspaceClient } from 'hyperspace'
 import Hypercore from 'hypercore'
 import Hyperswarm from 'hyperswarm'
 import DHT from '@hyperswarm/dht'
@@ -40,6 +41,11 @@ async function main() {
   const corestore = new Corestore(STATE_DIR)
   await corestore.ready()
 
+
+
+  const client = new HyperspaceClient()
+  await client.ready()
+  await client.status()
 
 
   // const node = new DHT()
