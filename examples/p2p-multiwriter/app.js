@@ -1,22 +1,31 @@
+import { dirname } from 'path';
+import { fileURLToPath } from 'url';
+
 import prompt from 'prompt'
 import ora from 'ora'
 import crypto from 'crypto'
+import Corestore from 'corestore'
 import Autobase from 'autobase'
 
 const APP_NAME = process.argv[2]
+if (!APP_NAME || !/^\w+$/.test(APP_NAME)) {
+  console.error(`app name required`);
+  process.exit(1);
+}
+const STATE_DIR = dirname(fileURLToPath(import.meta.url)) + `/state/${APP_NAME}`
 
 async function main() {
-  if (!APP_NAME || !/^\w+$/.test(APP_NAME)) {
-    console.error(`app name required`);
-    process.exit(1);
-  }
-
   const spinner = ora()
   prompt.start()
   prompt.message = ''
 
   spinner.start(`starting ${APP_NAME}...`);
 
+  const corestore = new Corestore(STATE_DIR)
+  await corestore.ready()
+
+  const appCore = corestore.get({ name: 'app' })
+  console.log('APP CORE', appCore)
 
   spinner.succeed(`${APP_NAME} ready`);
 
