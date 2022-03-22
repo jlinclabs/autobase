@@ -1,5 +1,5 @@
-import { dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { dirname } from 'path'
+import { fileURLToPath } from 'url'
 
 import prompt from 'prompt'
 import ora from 'ora'
@@ -10,52 +10,110 @@ import Hyperswarm from 'hyperswarm'
 import DHT from '@hyperswarm/dht'
 import Autobase from 'autobase'
 import ram from 'random-access-memory'
+import blessed from 'blessed'
 
 import TOPIC_KEY from './topic.js'
 import users from './users.js'
 
-import TerminalKit from 'terminal-kit'
 
-// console.log(TerminalKit)
-const { terminal } = TerminalKit
 
 
 const username = process.argv[2]
 if (!(username in users)){
-  console.error(`invalid username "${username}"`);
-  process.exit(1);
+  console.error(`invalid username "${username}"`)
+  process.exit(1)
 }
 const user = users[username]
 
 
-terminal.fullscreen()
-
-terminal.on('key', (name, matches, data) => {
-  // console.log('key', name, matches, data)
-  // Detect CTRL-C and exit 'manually'
-  if ( name === 'CTRL_C' ) shutdown()
+// Create a screen object.
+const screen = blessed.screen({
+  smartCSR: true,
 })
-await terminal.table(
-  [
-    ['HYPERCORE CHAT EXAMPLE'],
-    [`${username}>`],
-  ],
-  {
-    hasBorder: false,
-    // contentHasMarkup: true,
-    fit: true,
-    textAttr: { bgColor: 'default' } ,
-    firstCellTextAttr: { bgColor: 'blue' } ,
-    firstRowTextAttr: { bgColor: 'yellow' } ,
-    firstColumnTextAttr: { bgColor: 'red' } ,
-    checkerEvenCellTextAttr: { bgColor: 'gray' } ,
+screen.title = 'Hypercore Chat Example'
+
+// Quit on Escape, q, or Control-C.
+screen.key(['escape', 'q', 'C-c'], function(ch, key) {
+  shutdown()
+  // return process.exit(0)
+})
+
+const chatBox = blessed.box({
+  top: '0',
+  left: '0',
+  right: '0',
+  width: '100%',
+  height: '90%',
+  content: 'Loading chat message…',
+  // tags: true,
+  border: {
+    type: 'line'
+  },
+  style: {
+    fg: 'white',
+    // bg: 'magenta',
+    border: {
+      fg: '#f0f0f0'
+    },
   }
-)
+})
+screen.append(chatBox)
 
-// terminal( 'Please enter your name: ' )
+const inputBox = blessed.textbox({
+  parent: screen,
+  top: '90%',
+  left: '0',
+  right: '0',
+  bottom: '0',
+  width: '100%',
+  height: '10%',
+  inputOnFocus: true,
+  content: `${username}> `,
+  // tags: true,
+  border: {
+    type: 'line'
+  },
+  style: {
+    fg: 'white',
+  }
+})
 
-// const name = await terminal.inputField({}).promise
-// terminal.green("\nYour name is '%s'\n" , name)
+chatBox.setContent('WHO WHART NOW?!')
+
+// inputBox.on('action', function(...args) {
+//   chatBox.setContent('ACTION ' + JSON.stringify(args))
+// })
+// Append our box to the screen.
+screen.append(inputBox)
+
+// screen.key('i', function() {
+//   // chatBox.insertLine('i was pressed')
+//   inputBox.readInput()
+//   // inputBox.readInput(function(...args) {
+//   //   chatBox.setContent('EYE! ' + JSON.stringify(args))
+//   // });
+//   screen.render();
+// });
+
+screen.key('C-c', shutdown);
+inputBox.key('C-c', shutdown);
+
+inputBox.key('enter', function(ch, key){
+  const message = inputBox.value
+  chatBox.insertLine(1, message);
+  inputBox.clearValue()
+  screen.render();
+  focusInputBox()
+})
+
+function focusInputBox(){
+  inputBox.focus()
+  // inputBox.readInput()
+  screen.render()
+}
+// inputBox.on('blur', focusInputBox)
+screen.render()
+focusInputBox()
 
 
 // import swarmKeypair from './swarm-keypair.js'
@@ -78,18 +136,26 @@ await terminal.table(
 // persist cores per user but assume stored per app in the real world
 const STATE_DIR = dirname(fileURLToPath(import.meta.url)) + `/state/${username}`
 
+const corestore = new Corestore(STATE_DIR)
+
+const swarm = new Hyperswarm()
+
+async function shutdown() {
+  screen.destroy()
+  swarm.destroy()
+  corestore.close()
+}
+
 async function main() {
-  // log = new QueryableLog(path.join(configDir, 'hyperspace.log'), {overwrite: true, sizeLimit: 5e6})
-  const spinner = ora()
-  prompt.start()
-  prompt.message = ''
-
-  spinner.start(`connecting as ${username}...`)
-
-  const corestore = new Corestore(STATE_DIR)
   // await corestore.ready()
 
-  const swarm = new Hyperswarm()
+  // const spinner = ora()
+  // prompt.start()
+  // prompt.message = ''
+
+  // spinner.start(`connecting as ${username}...`)
+
+
   // Setup corestore replication
   swarm.on('connection', (socket) => {
     console.log('New connection from', socket.remotePublicKey.toString('hex'))
@@ -98,11 +164,6 @@ async function main() {
       keepAlive: true,
     })
   })
-  process.once('SIGINT', () => swarm.destroy()) // for faster restarts
-  process.on('exit', function () {
-    swarm.destroy()
-    corestore.close()
-  });
 
   const topicCore = corestore.get(TOPIC_KEY)
   await topicCore.ready()
@@ -137,13 +198,13 @@ async function main() {
     console.log(username, await coreToArray(users[username].core))
   }
 
-  spinner.succeed(`connected as ${username}`);
+  spinner.succeed(`connected as ${username}`)
 
-  spinner.start('loading messages...');
+  spinner.start('loading messages...')
 
   console.log('topicCore', await coreToArray(topicCore))
 
-  spinner.succeed(`messages loaded!`);
+  spinner.succeed(`messages loaded!`)
 
   const append = async payload =>
     await users[username].core.append([ serialize(payload) ])
