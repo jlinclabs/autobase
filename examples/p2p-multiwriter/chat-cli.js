@@ -68,8 +68,12 @@ async function main() {
   const topicCore = corestore.get(TOPIC_KEY)
   await topicCore.ready()
   swarm.join(topicCore.discoveryKey)
+  // swarm.join(topic, { server: false, client: true })
+
   // Make sure we have all the connections
   await swarm.flush()
+
+
   // Make sure we have the latest length
   await topicCore.update()
   console.log('topicCore', topicCore)
@@ -94,92 +98,13 @@ async function main() {
     console.log(username, await coreToArray(users[username].core))
   }
 
-
-
-
-  // const node = new DHT()
-  // const remotePublicKey = Buffer.from('09328eb37c6eea2e1e240d6f68cc25f515816e4c5c9190910c93f536561ca447', 'hex')
-  // const encryptedSocket = node.connect(remotePublicKey)
-
-  // connect to the swarm and subscribe to a topic
-  // const topicName = `autobase-example-chat-cli`
-  // const topic = Buffer.from(sha256(topicName), 'hex')
-  // console.log('topic=', topic.toString('hex'))
-  // const topicCore = corestore.get(TOPIC_KEY)
-  // console.log({ topicCore })
-  // console.log('topicCore', await coreToArray(topicCore))
-  // await topicCore.ready()
-
-
-  // const swarm = new Hyperswarm({
-  //   // keyPair: swarmKeypair,
-  //   // // bootstrap: ['host:port'],
-  //   // bootstrap: [
-  //   //   // { host: '127.0.0.1', port: 49736 },
-  //   //   { host: '0.0.0.0', port: 53091 },
-  //   // ]
-  // })
-  // swarm.on('connection', (socket) => {
-  //   console.log('New connection from', socket.remotePublicKey.toString('hex'))
-  //   console.log("REPLCIATE" + store.replicate)
-  //   corestore.replicate(socket)
-  //   corestore.replicate(socket)
-  // })
-  // const topicName = `autobase-example-chat-cli`
-  // const topic = Buffer.from(sha256(topicName), 'hex')
-  // const topicCore = corestore.get(TOPIC_KEY)
-  // console.log({ topicCore })
-  // await topicCore.ready()
-  // await topicCore.update()
-  // console.log('topicCore', await coreToArray(topicCore))
-  // console.log(`joining topic ${topicCore.discoveryKey.toString('hex')}`)
-  // swarm.join(topicCore.discoveryKey)
-  // // swarm.join(topic)
-
-  // await swarm.flush() // this takes a long time :(
-
-  // process.once('SIGINT', () => swarm.destroy()) // for faster restarts
-  // process.on('exit', function () {
-  //   swarm.destroy()
-  //   corestore.close()
-  // });
-
-  // const appCore = corestore.get({ name: 'app' })
-  // console.log('APP CORE', appCore)
-
   spinner.succeed(`connected as ${username}`);
 
   spinner.start('loading messages...');
 
   console.log('topicCore', await coreToArray(topicCore))
 
-  // console.log('STATUS', await swarm.status(topic))
-
-  // const combinedOutput = new Hypercore(ram)
-  // const combined = new Autobase({
-  //   inputs: Object.values(users).map(user => user.core),
-  //   localOutput: combinedOutput,
-  //   autostart: true,
-  // })
-  // const clock = await combined.latest()
-  // // console.log({clock})
-  // // console.log({combined})
-
-  // // const output = await causalValues(combined)
-  // // console.log('output--->\n')
-  // // console.log(output)
-
-  // for (const username in users){
-  //   console.log('userCore', username, await coreToArray(users[username].core))
-  // }
-
-  // await combined.view.update()
-  // // console.log('combined.view', combined.view)
-  // console.log('combined.view', await coreToArray(combined.view))
-  // console.log('combined.view ???', await causalValues(combined))
-
   spinner.succeed(`messages loaded!`);
-
 
   const append = async payload =>
     await users[username].core.append([ serialize(payload) ])
@@ -190,8 +115,17 @@ async function main() {
     append({ disconnected: Date.now() })
   })
 
+  function getChatLogEntires(){
+    const entries = []
+    for (const username in users){
+      coreToArray(users[username].core)
+      await coreToArray(topicCore)
+    }
+    return entries
+  }
 
   while (true) {
+
     const { message } = await prompt.get({
       description: `${username}>`,
       name: 'message',
@@ -201,6 +135,11 @@ async function main() {
       required: false,
     })
     console.log({ message })
+
+    for (const logEntry of getChatLogEntires()){
+      console.log(logEntry)
+    }
+
     await append({ message, at: Date.now() })
   }
 }
