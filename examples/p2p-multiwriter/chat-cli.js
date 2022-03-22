@@ -38,13 +38,14 @@ screen.key(['escape', 'q', 'C-c'], function(ch, key) {
   // return process.exit(0)
 })
 
-const chatBox = blessed.box({
+const chatLog = blessed.log({
   top: '0',
   left: '0',
   right: '0',
   width: '100%',
   height: '90%',
   content: 'Loading chat message…',
+  scrollOnInput: true,
   // tags: true,
   border: {
     type: 'line'
@@ -57,7 +58,7 @@ const chatBox = blessed.box({
     },
   }
 })
-screen.append(chatBox)
+screen.append(chatLog)
 
 const inputBox = blessed.textbox({
   parent: screen,
@@ -78,19 +79,19 @@ const inputBox = blessed.textbox({
   }
 })
 
-chatBox.setContent('WHO WHART NOW?!')
+chatLog.setContent('WHO WHART NOW?!')
 
 // inputBox.on('action', function(...args) {
-//   chatBox.setContent('ACTION ' + JSON.stringify(args))
+//   chatLog.setContent('ACTION ' + JSON.stringify(args))
 // })
 // Append our box to the screen.
 screen.append(inputBox)
 
 // screen.key('i', function() {
-//   // chatBox.insertLine('i was pressed')
+//   // chatLog.insertLine('i was pressed')
 //   inputBox.readInput()
 //   // inputBox.readInput(function(...args) {
-//   //   chatBox.setContent('EYE! ' + JSON.stringify(args))
+//   //   chatLog.setContent('EYE! ' + JSON.stringify(args))
 //   // });
 //   screen.render();
 // });
@@ -100,7 +101,7 @@ inputBox.key('C-c', shutdown);
 
 inputBox.key('enter', function(ch, key){
   const message = inputBox.value
-  chatBox.insertLine(1, message);
+  chatLog.log(message);
   inputBox.clearValue()
   screen.render();
   focusInputBox()
