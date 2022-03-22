@@ -9,13 +9,24 @@ import { Client as HyperspaceClient } from 'hyperspace'
 import Hypercore from 'hypercore'
 import Hyperswarm from 'hyperswarm'
 import DHT from '@hyperswarm/dht'
+import Autobase from 'autobase'
+import ram from 'random-access-memory'
+
+import users from './users.js'
 // import swarmKeypair from './swarm-keypair.js'
+
+
+// SHOULD I BE USING A REOTE HYPERCORE SERVER
+// OR DIRECTLY CONNECT TO A SWARM
+
+// HOW ARE APPS INTENDED TO BE SETUP?
+//   - EACH APP SERVER IN THE SWARM OR A MICROSERVICE FOR CORES?
+
+// DOES THE HYPERSPACE ABSTRACTION STORE KEYS FOR YOU REMOTELY?
+
 
 // import { QueryableLog } from 'queryable-log'
 
-import Autobase from 'autobase'
-import ram from 'random-access-memory'
-import users from './users.js'
 
 const username = process.argv[2]
 if (!(username in users)){
@@ -38,14 +49,16 @@ async function main() {
 
   spinner.start(`connecting as ${username}...`);
 
-  const corestore = new Corestore(STATE_DIR)
-  await corestore.ready()
+  // const corestore = new Corestore(STATE_DIR)
+  // await corestore.ready()
 
-
-
-  const client = new HyperspaceClient()
-  await client.ready()
-  await client.status()
+  const client = new HyperspaceClient({
+    storage: STATE_DIR,
+  })
+  console.log(client)
+  const corestore = client.corestore()
+  console.log(await client.ready())
+  console.log(await client.status())
 
 
   // const node = new DHT()

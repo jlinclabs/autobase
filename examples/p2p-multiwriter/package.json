@@ -17,5 +17,8 @@
     "hyperswarm": "next",
     "ora": "^6.1.0",
     "prompt": "^1.2.2"
+  },
+  "devDependencies": {
+    "@hyperspace/cli": "^2.0.0"
   }
 }
