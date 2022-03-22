@@ -12,6 +12,7 @@
   "root": true,
   "dependencies": {
     "hypercore-crypto": "^3.2.1",
+    "hyperswarm": "next",
     "ora": "^6.1.0",
     "prompt": "^1.2.2",
     "autobase": "file:../../"
