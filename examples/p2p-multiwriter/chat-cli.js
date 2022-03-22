@@ -46,24 +46,13 @@ async function main() {
   // const encryptedSocket = node.connect(remotePublicKey)
 
   // connect to the swarm and subscribe to a topic
-  const topicName = `autobase-example-chat-cli`
-  const topic = Buffer.from(sha256(topicName), 'hex')
-  console.log('topic=', topic.toString('hex'))
-  const topicCore = corestore.get(topic)
+  // const topicName = `autobase-example-chat-cli`
+  // const topic = Buffer.from(sha256(topicName), 'hex')
+  // console.log('topic=', topic.toString('hex'))
+  const topicCore = corestore.get(SWARM_KEY)
   console.log({ topicCore })
   console.log('topicCore', await coreToArray(topicCore))
   await topicCore.ready()
-
-
-  const dhtNode = new DHT()
-  const encryptedSocket = dhtNode.connect(SWARM_KEY)
-  encryptedSocket.on('open', function (...args) {
-    console.log('Connected to dht server', ...args)
-  })
-  encryptedSocket.on('data', function (data) {
-    console.log('Remote said:', data.toString())
-  })
-
 
 
   const swarm = new Hyperswarm()
@@ -89,7 +78,7 @@ async function main() {
 
   console.log('topicCore', await coreToArray(topicCore))
 
-  console.log('STATUS', await swarm.status( topic ))
+  console.log('STATUS', await swarm.status(SWARM_KEY))
 
   for (const username in users){
     const { publicKey } = users[username]
@@ -116,18 +105,21 @@ async function main() {
     autostart: true,
   })
   const clock = await combined.latest()
-  console.log({clock})
-  console.log({combined})
-  const output = await causalValues(combined)
-  console.log('output--->\n')
-  console.log(output)
+  // console.log({clock})
+  // console.log({combined})
+
+  // const output = await causalValues(combined)
+  // console.log('output--->\n')
+  // console.log(output)
 
   for (const username in users){
     console.log('userCore', username, await coreToArray(users[username].core))
   }
 
-  console.log('combined.view', combined.view)
-  // console.log('combined.view', await coreToArray(combined.view))
+  await combined.view.update()
+  // console.log('combined.view', combined.view)
+  console.log('combined.view', await coreToArray(combined.view))
+  console.log('combined.view ???', await causalValues(combined))
 
   spinner.succeed(`messages loaded!`);
 
@@ -169,11 +161,8 @@ function sha256 (inp) {
 
 
 async function coreToArray(core){
-  return await Promise.all(
-    Array(core.length).fill().map(async (_, i) =>
-      deserialize(await core.get(i))
-    )
-  )
+  const values = await linearizedValues(core)
+  return values.map(deserialize)
 }
 
 const serialize = payload => JSON.stringify(payload)
@@ -192,6 +181,16 @@ async function collect (stream, map) {
   const buf = []
   for await (const node of stream) {
     buf.push(map ? map(node) : node)
+  }
+  return buf
+}
+
+async function linearizedValues (index) {
+  const buf = []
+  await index.update()
+  for (let i = index.length - 1; i >= 0; i--) {
+    const indexNode = await index.get(i)
+    buf.push(indexNode)
   }
   return buf
 }
