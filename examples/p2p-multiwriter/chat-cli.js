@@ -8,7 +8,7 @@ import Corestore from 'corestore'
 import Hypercore from 'hypercore'
 import Hyperswarm from 'hyperswarm'
 import DHT from '@hyperswarm/dht'
-import swarmKeypair from './swarm-keypair.js'
+// import swarmKeypair from './swarm-keypair.js'
 
 // import { QueryableLog } from 'queryable-log'
 
@@ -57,16 +57,16 @@ async function main() {
 
 
   const swarm = new Hyperswarm({
-    keyPair: swarmKeypair,
-    // bootstrap: ['host:port'],
-    bootstrap: [
-      // { host: '127.0.0.1', port: 49736 },
-      { host: '0.0.0.0', port: 53091 },
-    ]
+    // keyPair: swarmKeypair,
+    // // bootstrap: ['host:port'],
+    // bootstrap: [
+    //   // { host: '127.0.0.1', port: 49736 },
+    //   { host: '0.0.0.0', port: 53091 },
+    // ]
   })
   swarm.on('connection', (socket) => {
     console.log('New connection from', socket.remotePublicKey.toString('hex'))
-    corestore.replicate(socket)
+    corestore.replicate(true, socket)
   })
   swarm.join(topicCore.discoveryKey)
   // swarm.join(topic)

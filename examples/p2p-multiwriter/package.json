@@ -11,10 +11,11 @@
   "license": "MIT",
   "root": true,
   "dependencies": {
+    "autobase": "file:../../",
     "hypercore-crypto": "^3.2.1",
+    "hyperspace": "^3.19.0",
     "hyperswarm": "next",
     "ora": "^6.1.0",
-    "prompt": "^1.2.2",
-    "autobase": "file:../../"
+    "prompt": "^1.2.2"
   }
 }
