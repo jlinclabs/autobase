@@ -5,7 +5,6 @@ import prompt from 'prompt'
 import ora from 'ora'
 import crypto from 'crypto'
 import Corestore from 'corestore'
-import { Client as HyperspaceClient } from 'hyperspace'
 import Hypercore from 'hypercore'
 import Hyperswarm from 'hyperswarm'
 import DHT from '@hyperswarm/dht'
@@ -36,7 +35,7 @@ if (!(username in users)){
 const user = users[username]
 
 // SAME AS IN ./hyperspace-server.js
-const SWARM_KEY = Buffer.from('604d03ea2045c1adfcb6adad02d71667e03c27ec846fe4f5c4d912c10464aea0', 'hex')
+const TOPIC_KEY = Buffer.from('604d03ea2045c1adfcb6adad02d71667e03c27ec846fe4f5c4d912c10464aea0', 'hex')
 
 // persist cores per user but assume stored per app in the real world
 const STATE_DIR = dirname(fileURLToPath(import.meta.url)) + `/state/${username}`
@@ -49,16 +48,30 @@ async function main() {
 
   spinner.start(`connecting as ${username}...`);
 
-  // const corestore = new Corestore(STATE_DIR)
-  // await corestore.ready()
+  const corestore = new Corestore(STATE_DIR)
+  await corestore.ready()
 
-  const client = new HyperspaceClient({
-    storage: STATE_DIR,
-  })
-  console.log(client)
-  const corestore = client.corestore()
-  console.log(await client.ready())
-  console.log(await client.status())
+
+
+  for (const username in users){
+    const { publicKey } = users[username]
+    users[username].core = corestore.get({
+      key: Buffer.from(publicKey, 'hex'),
+      secretKey: user.publicKey === publicKey
+        ? Buffer.from(user.secretKey, 'hex')
+        : undefined,
+    })
+  }
+  // console.log('users', users)
+
+  // update all cores (Autobase does this now)
+  await Promise.all(Object.values(users).map(user => user.core.update()))
+
+  for (const username in users){
+    console.log(username, await coreToArray(users[username].core))
+  }
+
+
 
 
   // const node = new DHT()
@@ -69,10 +82,10 @@ async function main() {
   // const topicName = `autobase-example-chat-cli`
   // const topic = Buffer.from(sha256(topicName), 'hex')
   // console.log('topic=', topic.toString('hex'))
-  const topicCore = corestore.get(SWARM_KEY)
-  console.log({ topicCore })
-  console.log('topicCore', await coreToArray(topicCore))
-  await topicCore.ready()
+  // const topicCore = corestore.get(TOPIC_KEY)
+  // console.log({ topicCore })
+  // console.log('topicCore', await coreToArray(topicCore))
+  // await topicCore.ready()
 
 
   const swarm = new Hyperswarm({
@@ -87,6 +100,14 @@ async function main() {
     console.log('New connection from', socket.remotePublicKey.toString('hex'))
     corestore.replicate(true, socket)
   })
+  const topicName = `autobase-example-chat-cli`
+  const topic = Buffer.from(sha256(topicName), 'hex')
+  const topicCore = corestore.get(TOPIC_KEY)
+  console.log({ topicCore })
+  await topicCore.ready()
+  await topicCore.update()
+  console.log('topicCore', await coreToArray(topicCore))
+  console.log(`joining topic ${topicCore.discoveryKey.toString('hex')}`)
   swarm.join(topicCore.discoveryKey)
   // swarm.join(topic)
   await swarm.flush() // this takes a long time :(
@@ -105,48 +126,30 @@ async function main() {
 
   console.log('topicCore', await coreToArray(topicCore))
 
-  console.log('STATUS', await swarm.status(SWARM_KEY))
+  // console.log('STATUS', await swarm.status(topic))
 
-  for (const username in users){
-    const { publicKey } = users[username]
-    users[username].core = corestore.get({
-      key: Buffer.from(publicKey, 'hex'),
-      secretKey: user.publicKey === publicKey
-        ? Buffer.from(user.secretKey, 'hex')
-        : undefined,
-    })
-  }
-  console.log('users', users)
+  // const combinedOutput = new Hypercore(ram)
+  // const combined = new Autobase({
+  //   inputs: Object.values(users).map(user => user.core),
+  //   localOutput: combinedOutput,
+  //   autostart: true,
+  // })
+  // const clock = await combined.latest()
+  // // console.log({clock})
+  // // console.log({combined})
 
-  // update all cores (Autobase does this now)
-  // await Promise.all(Object.values(users).map(user => user.core.update()))
+  // // const output = await causalValues(combined)
+  // // console.log('output--->\n')
+  // // console.log(output)
 
-  for (const username in users){
-    console.log('userCore', username, await coreToArray(users[username].core))
-  }
+  // for (const username in users){
+  //   console.log('userCore', username, await coreToArray(users[username].core))
+  // }
 
-  const combinedOutput = new Hypercore(ram)
-  const combined = new Autobase({
-    inputs: Object.values(users).map(user => user.core),
-    localOutput: combinedOutput,
-    autostart: true,
-  })
-  const clock = await combined.latest()
-  // console.log({clock})
-  // console.log({combined})
-
-  // const output = await causalValues(combined)
-  // console.log('output--->\n')
-  // console.log(output)
-
-  for (const username in users){
-    console.log('userCore', username, await coreToArray(users[username].core))
-  }
-
-  await combined.view.update()
-  // console.log('combined.view', combined.view)
-  console.log('combined.view', await coreToArray(combined.view))
-  console.log('combined.view ???', await causalValues(combined))
+  // await combined.view.update()
+  // // console.log('combined.view', combined.view)
+  // console.log('combined.view', await coreToArray(combined.view))
+  // console.log('combined.view ???', await causalValues(combined))
 
   spinner.succeed(`messages loaded!`);
 
