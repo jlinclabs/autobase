@@ -52,11 +52,18 @@ async function main() {
 
   const swarm = new Hyperswarm()
   // Setup corestore replication
-  swarm.on('connection', (connection) => {
+  swarm.on('connection', (socket) => {
     console.log('New connection from', socket.remotePublicKey.toString('hex'))
     // console.log("REPLCIATE" + store.replicate)
-    store.replicate(connection)
+    corestore.replicate(socket, {
+      keepAlive: true,
+    })
   })
+  process.once('SIGINT', () => swarm.destroy()) // for faster restarts
+  process.on('exit', function () {
+    swarm.destroy()
+    corestore.close()
+  });
 
   const topicCore = corestore.get(TOPIC_KEY)
   await topicCore.ready()
@@ -68,23 +75,24 @@ async function main() {
   console.log('topicCore', topicCore)
   console.log('topicCore', await coreToArray(topicCore))
 
-  // for (const username in users){
-  //   const { publicKey } = users[username]
-  //   users[username].core = corestore.get({
-  //     key: Buffer.from(publicKey, 'hex'),
-  //     secretKey: user.publicKey === publicKey
-  //       ? Buffer.from(user.secretKey, 'hex')
-  //       : undefined,
-  //   })
-  // }
-  // // console.log('users', users)
+  // get corestores for all our users
+  for (const username in users){
+    const { publicKey } = users[username]
+    users[username].core = corestore.get({
+      key: Buffer.from(publicKey, 'hex'),
+      secretKey: user.publicKey === publicKey
+        ? Buffer.from(user.secretKey, 'hex')
+        : undefined,
+    })
+    // do we need to replicate here?
+  }
 
-  // // update all cores (Autobase does this now)
-  // await Promise.all(Object.values(users).map(user => user.core.update()))
+  // update all cores (Autobase does this now)
+  await Promise.all(Object.values(users).map(user => user.core.update()))
 
-  // for (const username in users){
-  //   console.log(username, await coreToArray(users[username].core))
-  // }
+  for (const username in users){
+    console.log(username, await coreToArray(users[username].core))
+  }
 
 
 
@@ -130,11 +138,11 @@ async function main() {
 
   // await swarm.flush() // this takes a long time :(
 
-  process.once('SIGINT', () => swarm.destroy()) // for faster restarts
-  process.on('exit', function () {
-    swarm.destroy()
-    corestore.close()
-  });
+  // process.once('SIGINT', () => swarm.destroy()) // for faster restarts
+  // process.on('exit', function () {
+  //   swarm.destroy()
+  //   corestore.close()
+  // });
 
   // const appCore = corestore.get({ name: 'app' })
   // console.log('APP CORE', appCore)
