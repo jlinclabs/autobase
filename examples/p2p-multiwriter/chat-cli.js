@@ -78,30 +78,18 @@ const inputBox = blessed.textbox({
     fg: 'white',
   }
 })
-
-chatLog.setContent('WHO WHART NOW?!')
-
-// inputBox.on('action', function(...args) {
-//   chatLog.setContent('ACTION ' + JSON.stringify(args))
-// })
-// Append our box to the screen.
 screen.append(inputBox)
-
-// screen.key('i', function() {
-//   // chatLog.insertLine('i was pressed')
-//   inputBox.readInput()
-//   // inputBox.readInput(function(...args) {
-//   //   chatLog.setContent('EYE! ' + JSON.stringify(args))
-//   // });
-//   screen.render();
-// });
 
 screen.key('C-c', shutdown);
 inputBox.key('C-c', shutdown);
 
+const log = msg => chatLog.log(
+  typeof msg === 'string' ? msg : JSON.stringify(msg, {color: true})
+)
+
 inputBox.key('enter', function(ch, key){
   const message = inputBox.value
-  chatLog.log(message);
+  log(message);
   inputBox.clearValue()
   screen.render();
   focusInputBox()
@@ -112,7 +100,7 @@ function focusInputBox(){
   // inputBox.readInput()
   screen.render()
 }
-// inputBox.on('blur', focusInputBox)
+
 screen.render()
 focusInputBox()
 
@@ -154,12 +142,12 @@ async function main() {
   // prompt.start()
   // prompt.message = ''
 
-  // spinner.start(`connecting as ${username}...`)
+  log(`connecting as ${username}...`)
 
 
   // Setup corestore replication
   swarm.on('connection', (socket) => {
-    console.log('New connection from', socket.remotePublicKey.toString('hex'))
+    log('New connection from', socket.remotePublicKey.toString('hex'))
     // console.log("REPLCIATE" + store.replicate)
     corestore.replicate(socket, {
       keepAlive: true,
@@ -177,8 +165,8 @@ async function main() {
 
   // Make sure we have the latest length
   await topicCore.update()
-  console.log('topicCore', topicCore)
-  console.log('topicCore', await coreToArray(topicCore))
+  log('topicCore', topicCore)
+  log('topicCore', await coreToArray(topicCore))
 
   // get corestores for all our users
   for (const username in users){
@@ -196,14 +184,14 @@ async function main() {
   await Promise.all(Object.values(users).map(user => user.core.update()))
 
   for (const username in users){
-    console.log(username, await coreToArray(users[username].core))
+    log(username, await coreToArray(users[username].core))
   }
 
-  spinner.succeed(`connected as ${username}`)
+  chatLog.setContent(`connected as ${username}`)
 
-  spinner.start('loading messages...')
+  chatLog.setContent('loading messages...')
 
-  console.log('topicCore', await coreToArray(topicCore))
+  log('topicCore', await coreToArray(topicCore))
 
   spinner.succeed(`messages loaded!`)
 
@@ -236,10 +224,10 @@ async function main() {
       message: 'a chat message',
       required: false,
     })
-    console.log({ message })
+    log({ message })
 
     for (const logEntry of await getChatLogEntires()){
-      console.log(logEntry)
+      log(logEntry)
     }
 
     await append({ message, at: Date.now() })
