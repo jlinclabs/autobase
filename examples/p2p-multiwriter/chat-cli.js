@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url'
 import { inspect } from 'util'
 import blessed from 'blessed'
 import b4a from 'b4a'
+import { readFileSync } from 'fs'
 
 /* Hypercore packages */
 import Corestore from 'corestore'
@@ -98,7 +99,7 @@ async function connect() {
     // do we need to replicate here?
   }
 
-  // await appendToUserCore({ connected: true })
+  await appendToUserCore({ connected: true })
   log(`connected as ${username}`)
 }
 
@@ -161,6 +162,16 @@ async function sendNewMessage(message){
   await renderNewChatLogEntires()
 }
 
+async function runCommand(cmd){
+  if (cmd === '/exit') disconnect()
+  else if (cmd === '/help') log(
+    `help:\n` +
+    `  /help - see this message\n` +
+    `  /exit - exit this app\n`
+  )
+  else debug(`unknown command: ${cmd}`)
+}
+
 async function disconnect() {
   log('disconnecting…')
   await appendToUserCore({ disconnected: true })
@@ -207,8 +218,8 @@ function chatLogEntryToScreenLog(e){
   )
   const ours = e.username === username
   return (
-    `{grey-fg}${date}{/} | ` +
-    `{grey-fg}${truncate(e.publicKey)}{/} | ` +
+    `{grey-fg}${date}{/} {green-fg}|{/} ` +
+    `{grey-fg}${truncate(e.publicKey)}{/} {green-fg}|{/} ` +
     `{blue-fg}${ours ? '{bold}' : ''}${e.username}{/}` +
     `{white-fg}:{/} ` + (
       e.connected ? '{grey-fg}[connected]' :
@@ -230,6 +241,7 @@ function createTerminalScreen(){
 
   screen.key(['escape', 'q', 'C-c'], disconnect)
 
+  const banner = readFileSync('./banner.txt').toString().split('\n')
   screen.chatLog = blessed.log({
     parent: screen,
     top: '0',
@@ -237,7 +249,10 @@ function createTerminalScreen(){
     right: '0',
     width: '100%',
     height: '100%',
-    content: Array(screen.height).fill('\n').join(''),
+    content: (
+      Array(screen.height - banner.length - 1).fill('\n').join('') +
+      '{green-fg}' + banner.join('\n') + '{/}\n'
+    ),
     scrollOnInput: true,
     tags: true,
     border: { type: 'line' },
@@ -270,13 +285,15 @@ function createTerminalScreen(){
     screen.inputBox.key('enter', function(ch, key){
       const msg = screen.inputBox.value
       if (!msg || msg.trim() === '') return
-      sendNewMessage(msg)
+      if (msg[0] === '/') runCommand(msg)
+      else sendNewMessage(msg)
       screen.inputBox.clearValue()
       screen.render()
       screen.inputBox.focus()
     })
 
     screen.append(screen.inputBox)
+    screen.render()
     screen.inputBox.focus()
   }
 
@@ -297,15 +314,14 @@ async function log(...msgs){
 
 async function debug(...msgs){
   log(
-    `{grey-fg}[debug]{/} ` +
+    `{right}{grey-fg}[debug]{/} ` +
     msgs
       .map(msg =>
         typeof msg === 'string'
           ? `{grey-fg}${msg}{/}`
           : inspect(msg, {colorize: true})
       )
-      .join(' ')
+      .join(' ') +
+    `{/right}`
   )
 }
-
-
