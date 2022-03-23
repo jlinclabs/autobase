@@ -38,6 +38,7 @@ screen.key(['escape', 'q', 'C-c'], function(ch, key) {
 })
 
 const chatLog = blessed.log({
+  parent: screen,
   title: 'Hypercore Chat Demo',
   top: '0',
   left: '0',
@@ -47,7 +48,6 @@ const chatLog = blessed.log({
   height: '100%',
   // height: '90%',
   content: '',
-  content: ` ROWS ${screen.rows} ${screen.rows / 100}`,
   scrollOnInput: true,
   // tags: true,
   border: {
@@ -66,7 +66,7 @@ const log = (...msgs) => chatLog.log(
     typeof msg === 'string' ? msg : inspect(msg, {colorize: true})
   )
 )
-screen.append(chatLog)
+// screen.append(chatLog)
 screen.key('C-c', shutdown);
 screen.render()
 
@@ -99,7 +99,7 @@ function renderInputBox(){
       fg: 'white',
     }
   })
-  screen.append(inputBox)
+  // screen.append(inputBox)
   inputBox.key('C-c', shutdown);
 
   inputBox.key('enter', function(ch, key){
@@ -152,9 +152,7 @@ async function shutdown() {
 
 async function main() {
   // await corestore.ready()
-
   log(`connecting as ${username}...`)
-
 
   // Setup corestore replication
   swarm.on('connection', (socket) => {
@@ -168,11 +166,11 @@ async function main() {
   const topicCore = corestore.get(TOPIC_KEY)
   log(`joining swarm topic ${TOPIC_KEY.toString('hex')}`)
 
-  // await topicCore.ready()
-  // swarm.join(topicCore.discoveryKey)
-  // // swarm.join(topic, { server: false, client: true })
-  // // Make sure we have all the connections
-  // await swarm.flush()
+  await topicCore.ready()
+  swarm.join(topicCore.discoveryKey)
+  // swarm.join(topic, { server: false, client: true })
+  // Make sure we have all the connections
+  await swarm.flush()
 
 
   // Make sure we have the latest length
@@ -195,9 +193,9 @@ async function main() {
   // update all cores (Autobase does this now)
   await Promise.all(Object.values(users).map(user => user.core.update()))
 
-  // for (const username in users){
-  //   log(username, await coreToArray(users[username].core))
-  // }
+  for (const username in users){
+    log(username, await coreToArray(users[username].core))
+  }
 
   log(`connected as ${username}`)
 
@@ -216,21 +214,32 @@ async function main() {
     append({ disconnected: Date.now() })
   })
 
-  async function getChatLogEntires(){
-    const entries = []
+  async function renderChatLogEntires(){
+    let entries = []
     for (const username in users){
       for (const entry of await coreToArray(users[username].core)){
         entries.push({...entry, username})
       }
     }
+    entries = entries.sort((a, b) => {
+      a = a.at
+      b = b.at
+      return a < b ? -1 : a > b ? 1 : 0
+    })
+
+    for (const e of entries){
+      log(`(${e.at}) ${e.username}> ${e.connected ? '[connected]' : e.message}`)
+    }
     return entries
   }
 
+  renderChatLogEntires()
   renderInputBox()
 
   inputBox.on('newMessage', message => {
     append({ message, at: Date.now() })
-    log(message)
+    // log(message)
+    renderChatLogEntires()
   })
   // while (true) {
   //   const { message } = await prompt.get({
@@ -243,7 +252,7 @@ async function main() {
   //   })
   //   log({ message })
 
-  //   for (const logEntry of await getChatLogEntires()){
+  //   for (const logEntry of await renderChatLogEntires()){
   //     log(logEntry)
   //   }
 
