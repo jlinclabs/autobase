@@ -1,28 +1,29 @@
+/* UI/UX packages */
 import { dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { inspect } from 'util'
-
-import crypto from 'crypto'
-import Corestore from 'corestore'
-import Hypercore from 'hypercore'
-import Hyperswarm from 'hyperswarm'
-import DHT from '@hyperswarm/dht'
-import Autobase from 'autobase'
-import ram from 'random-access-memory'
 import blessed from 'blessed'
-// import { QueryableLog } from 'queryable-log'
 
+/* Hypercore packages */
+import Corestore from 'corestore'
+import Hyperswarm from 'hyperswarm'
+
+/* data that would normally be in disparate app databases */
 import TOPIC_KEY from './topic.js'
 import users from './users.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const username = process.argv[2]
-if (!(username in users)){
-  console.error(`invalid username "${username}"`)
+const user = users[username]
+if (!user){
+  console.error(
+    `invalid username "${username}". Must be one of:`,
+    Object.keys(users),
+  )
   process.exit(1)
 }
-const user = users[username]
+
 
 let screen
 let corestore
@@ -50,39 +51,27 @@ main().catch(error => {
 
 
 function createTerminalScreen(){
-  let inputBox
-
-  // Create a screen object.
   screen = blessed.screen({
     smartCSR: true,
   })
   screen.title = 'Hypercore Chat Example'
 
-  // Quit on Escascreen.key('C-c', shutdown);pe, q, or Control-C.
   screen.key(['escape', 'q', 'C-c'], disconnect)
 
   screen.chatLog = blessed.log({
     parent: screen,
-    title: 'Hypercore Chat Demo',
     top: '0',
     left: '0',
     right: '0',
     width: '100%',
-    // height: '100%-3',
     height: '100%',
-    // height: '90%',
     content: '',
     scrollOnInput: true,
     tags: true,
-    border: {
-      type: 'line'
-    },
+    border: { type: 'line' },
     style: {
       fg: 'white',
-      // bg: 'magenta',
-      border: {
-        fg: '#f0f0f0'
-      },
+      border: { fg: '#f0f0f0' },
     }
   })
 
@@ -90,7 +79,7 @@ function createTerminalScreen(){
 
   screen.showInputBox = () => {
     screen.chatLog.height = '90%'
-    inputBox = blessed.textbox({
+    screen.inputBox = blessed.textbox({
       top: '90%',
       left: '0',
       right: '0',
@@ -104,25 +93,25 @@ function createTerminalScreen(){
       border: { type: 'line' },
       style: { fg: 'white' },
     })
-    inputBox.key('C-c', disconnect);
+    screen.inputBox.key('C-c', disconnect);
 
-    inputBox.key('enter', function(ch, key){
-      const msg = inputBox.value
+    screen.inputBox.key('enter', function(ch, key){
+      const msg = screen.inputBox.value
       if (!msg || msg.trim() === '') return
       sendNewMessage(msg)
-      inputBox.clearValue()
+      screen.inputBox.clearValue()
       screen.render()
-      inputBox.focus()
+      screen.inputBox.focus()
     })
 
-    screen.append(inputBox)
-    inputBox.focus()
+    screen.append(screen.inputBox)
+    screen.inputBox.focus()
   }
 
   screen.hideInputBox = () => {
     screen.chatLog.height = '100%'
-    screen.remove(inputBox)
-    inputBox = undefined
+    screen.remove(screen.inputBox)
+    delete screen.inputBox
   }
 
   screen.render()
@@ -149,7 +138,7 @@ async function debug(...msgs){
 
 async function connect() {
   log(`connecting as ${username}...`)
-  // persist cores per user but assume stored per app in the real world
+  // persist cores per user but assume we would store user cores per-app in the real world
   const STATE_DIR =`${__dirname}/state/${username}`
   debug(`hypercores stored in ` + STATE_DIR)
 
