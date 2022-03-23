@@ -31,7 +31,6 @@ let topicCore
 
 async function main(){
   createTerminalScreen()
-  debug('start')
   await connect()
   await updateAllUserCores()
   // checkForNewMessages()
@@ -61,7 +60,7 @@ function createTerminalScreen(){
   // Quit on Escascreen.key('C-c', shutdown);pe, q, or Control-C.
   screen.key(['escape', 'q', 'C-c'], disconnect)
 
-  const chatLog = blessed.log({
+  screen.chatLog = blessed.log({
     parent: screen,
     title: 'Hypercore Chat Demo',
     top: '0',
@@ -86,12 +85,14 @@ function createTerminalScreen(){
     }
   })
 
-  screen.setChatLog = loglines => chatLog.setData(loglines)
-  screen.clearChatLog = () => chatLog.setContent('')
-  screen.appendChatLog = msg => chatLog.log(msg)
+
+  // screen.setChatLog = loglines => screen.chatLog.setRows(loglines)
+  screen.setChatLog = loglines => { throw new Error('xxx') }
+  screen.clearChatLog = () => screen.chatLog.setContent('')
+  screen.appendChatLog = msg => screen.chatLog.log(msg)
 
   screen.showInputBox = () => {
-    chatLog.height = '90%'
+    screen.chatLog.height = '90%'
     inputBox = blessed.textbox({
       // title: 'new chat message',
       top: '90%',
@@ -139,7 +140,7 @@ function createTerminalScreen(){
   }
 
   screen.hideInputBox = () => {
-    chatLog.height = '100%'
+    screen.chatLog.height = '100%'
     screen.remove(inputBox)
     inputBox = undefined
   }
@@ -226,7 +227,7 @@ async function connect() {
 
 async function updateAllUserCores(){
   const cores = Object.values(users).map(user => user.core)
-  debug(`updating all user cores length=${cores.length}`)
+  debug(`updating all user cores (${cores.length})`)
   // update all cores
   //   (Autobase would do this for us)
   await Promise.all(cores.map(core => core.update()))
