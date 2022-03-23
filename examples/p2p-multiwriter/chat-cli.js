@@ -241,13 +241,24 @@ function createTerminalScreen(){
   screen.key(['escape', 'q', 'C-c', 'C-d'], disconnect)
 
   const banner = readFileSync('./banner.txt').toString().split('\n')
-  screen.chatLog = blessed.log({
+  screen.statusBar = blessed.box({
     parent: screen,
     top: '0',
     left: '0',
     right: '0',
     width: '100%',
-    height: '100%',
+    // height: 'shrink',
+    content: 'STATUS UP HERE',
+    valign: 'center',
+  })
+  screen.chatLog = blessed.log({
+    parent: screen,
+    top: 2,
+    // bottom: '0%+3',
+    left: 0,
+    right: 0,
+    width: '100%',
+    height: '100%-5',
     content: (
       Array(screen.height - banner.length - 1).fill('\n').join('') +
       '{green-fg}' + banner.join('\n') + '{/}\n'
@@ -255,23 +266,20 @@ function createTerminalScreen(){
     scrollOnInput: true,
     tags: true,
     border: { type: 'line' },
-    style: {
-      fg: 'white',
-      border: { fg: '#f0f0f0' },
-    }
+    style: { fg: 'white', border: { fg: '#f0f0f0' } }
   })
 
   screen.appendChatLog = msg => screen.chatLog.log(msg)
 
   screen.showInputBox = () => {
-    screen.chatLog.height = '90%'
+    // screen.chatLog.height = '80%'
     screen.inputBox = blessed.textbox({
-      top: '90%',
-      left: '0',
-      right: '0',
-      bottom: '0',
+      top: '100%-3',
+      left: 0,
+      right: 0,
+      bottom: 0,
       width: '100%',
-      height: `shrink`,
+      height: 3,
       shadow: true,
       inputOnFocus: true,
       content: '',
@@ -283,9 +291,10 @@ function createTerminalScreen(){
 
     screen.inputBox.key('enter', function(ch, key){
       const msg = screen.inputBox.value
-      if (!msg || msg.trim() === '') return
-      if (msg[0] === '/') runCommand(msg)
-      else sendNewMessage(msg)
+      if (msg && msg.trim() !== ''){
+        if (msg[0] === '/') runCommand(msg)
+        else sendNewMessage(msg)
+      }
       screen.inputBox.clearValue()
       screen.render()
       screen.inputBox.focus()
