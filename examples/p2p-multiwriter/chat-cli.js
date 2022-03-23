@@ -52,6 +52,55 @@ main().catch(error => {
 /*
   Hypercore functions:
 */
+
+async function connect() {
+  log(`connecting as ${username}...`)
+  // persist cores per user but assume we would store user cores per-app in the real world
+  const STATE_DIR =`${__dirname}/state/${username}`
+  debug(`hypercores stored in ` + STATE_DIR)
+
+  corestore = new Corestore(STATE_DIR)
+  swarm = new Hyperswarm()
+  // await corestore.ready()
+
+  // Setup corestore replication
+  swarm.on('connection', (socket) => {
+    debug('new peer connection from ' + socket.remotePublicKey.toString('hex'))
+    // console.log("REPLCIATE" + store.replicate)
+    corestore.replicate(socket, {
+      keepAlive: true,
+      // live?
+    })
+    checkForNewMessages()
+  })
+
+  topicCore = corestore.get(TOPIC_KEY)
+  log(`joining swarm topic ${TOPIC_KEY.toString('hex')}`)
+
+  await topicCore.ready()
+  swarm.join(topicCore.discoveryKey)
+  // swarm.join(topic, { server: false, client: true })
+
+  // Make sure we have all the connections
+  // await swarm.flush() // ¿ Do we need to wait for this? It's slow
+  swarm.flush().then(() => { debug('connected to swarm!') })
+
+  // get corestores for all our users
+  for (const username in users){
+    const { publicKey } = users[username]
+    users[username].core = corestore.get({
+      key: Buffer.from(publicKey, 'hex'),
+      secretKey: user.publicKey === publicKey
+        ? Buffer.from(user.secretKey, 'hex')
+        : undefined,
+    })
+    // do we need to replicate here?
+  }
+
+  await appendToUserCore({ connected: true })
+  log(`connected as ${username}`)
+}
+
 async function updateAllUserCores(){
   // NOTE: Autobase would do this for us
   const cores = Object.values(users).map(user => user.core)
@@ -61,6 +110,7 @@ async function updateAllUserCores(){
 let lastRenderedEntry
 async function renderNewChatLogEntires(){
   // TODO replace this with an instance of Autobase
+  // TODO consider caching merges chat log entries into new local/private hypercore
 
   let entries = []
   for (const username in users){
@@ -91,30 +141,6 @@ async function renderNewChatLogEntires(){
   if (entries.length === 0) return
   lastRenderedEntry = entries[entries.length - 1]
   for (const entry of entries) screen.appendChatLog(chatLogEntryToScreenLog(entry))
-}
-
-function chatLogEntryToScreenLog(e){
-  const date = new Date(e.at).toLocaleDateString(
-    'en-us',
-    {
-      year: 'numeric',
-      month: 'numeric',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-      hour12: true,
-    }
-  )
-  const ours = e.username === username
-  return (
-    `{grey-fg}${date}{/} | ` +
-    `{blue-fg}${ours ? '{bold}' : ''}${e.username}{/}` +
-    `{white-fg}:{/} ` + (
-      e.connected ? '{grey-fg}[connected]' :
-      e.disconnected ? '{grey-fg}[disconnected]' :
-      `{white-fg}${e.message}`
-    ) + `{/}`
-  )
 }
 
 async function checkForNewMessages(){
@@ -162,6 +188,30 @@ const deserialize = msg => JSON.parse(msg)
 /*
   Terminal UI functions:
 */
+
+function chatLogEntryToScreenLog(e){
+  const date = new Date(e.at).toLocaleDateString(
+    'en-us',
+    {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true,
+    }
+  )
+  const ours = e.username === username
+  return (
+    `{grey-fg}${date}{/} | ` +
+    `{blue-fg}${ours ? '{bold}' : ''}${e.username}{/}` +
+    `{white-fg}:{/} ` + (
+      e.connected ? '{grey-fg}[connected]' :
+      e.disconnected ? '{grey-fg}[disconnected]' :
+      `{white-fg}${e.message}`
+    ) + `{/}`
+  )
+}
 
 function createTerminalScreen(){
   screen = blessed.screen({
@@ -247,52 +297,4 @@ async function debug(...msgs){
       )
       .join(' ')
   )
-}
-
-async function connect() {
-  log(`connecting as ${username}...`)
-  // persist cores per user but assume we would store user cores per-app in the real world
-  const STATE_DIR =`${__dirname}/state/${username}`
-  debug(`hypercores stored in ` + STATE_DIR)
-
-  corestore = new Corestore(STATE_DIR)
-  swarm = new Hyperswarm()
-  // await corestore.ready()
-
-  // Setup corestore replication
-  swarm.on('connection', (socket) => {
-    debug('new peer connection from ' + socket.remotePublicKey.toString('hex'))
-    // console.log("REPLCIATE" + store.replicate)
-    corestore.replicate(socket, {
-      keepAlive: true,
-      // live?
-    })
-    checkForNewMessages()
-  })
-
-  topicCore = corestore.get(TOPIC_KEY)
-  log(`joining swarm topic ${TOPIC_KEY.toString('hex')}`)
-
-  await topicCore.ready()
-  swarm.join(topicCore.discoveryKey)
-  // swarm.join(topic, { server: false, client: true })
-
-  // Make sure we have all the connections
-  // await swarm.flush() // ¿ Do we need to wait for this? It's slow
-  swarm.flush().then(() => { debug('connected to swarm!') })
-
-  // get corestores for all our users
-  for (const username in users){
-    const { publicKey } = users[username]
-    users[username].core = corestore.get({
-      key: Buffer.from(publicKey, 'hex'),
-      secretKey: user.publicKey === publicKey
-        ? Buffer.from(user.secretKey, 'hex')
-        : undefined,
-    })
-    // do we need to replicate here?
-  }
-
-  await appendToUserCore({ connected: true })
-  log(`connected as ${username}`)
 }
