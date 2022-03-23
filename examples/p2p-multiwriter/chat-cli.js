@@ -57,7 +57,8 @@ main().catch(error => {
 */
 
 async function connect() {
-  log(`connecting as ${username}...`)
+  setStatus(`connecting as ${username}...`)
+  debug(`connecting as ${username}...`)
   // persist cores per user but assume we would store user cores per-app in the real world
   const STATE_DIR =`${__dirname}/state/${username}`
   debug(`hypercores stored in ` + STATE_DIR)
@@ -99,7 +100,7 @@ async function connect() {
     })
     // do we need to replicate here?
   }
-  log(`connected as ${username}`)
+  setStatus(`connected as ${username}`)
 }
 
 async function updateAllUserCores(){
@@ -248,9 +249,11 @@ function createTerminalScreen(){
     right: 0,
     width: '100%',
     height: 1,
-    content: 'STATUS UP HERE',
+    content: 'connecting…',
     valign: 'center',
   })
+  screen.setStatus = status => screen.statusBar.setContent(status)
+
   screen.chatLog = blessed.log({
     parent: screen,
     top: 1,
@@ -305,7 +308,7 @@ function createTerminalScreen(){
   }
 
   screen.hideInputBox = () => {
-    screen.chatLog.height = '100%'
+    screen.chatLog.height = '100%-1'
     screen.remove(screen.inputBox)
     delete screen.inputBox
   }
@@ -317,6 +320,10 @@ async function log(...msgs){
   msgs.forEach(msg => {
     screen.appendChatLog(msg)
   })
+}
+
+async function setStatus(status){
+  screen.setStatus(status)
 }
 
 async function debug(...msgs){
