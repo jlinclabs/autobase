@@ -243,22 +243,21 @@ function createTerminalScreen(){
   const banner = readFileSync('./banner.txt').toString().split('\n')
   screen.statusBar = blessed.box({
     parent: screen,
-    top: '0',
-    left: '0',
-    right: '0',
+    top: 0,
+    left: 0,
+    right: 0,
     width: '100%',
-    // height: 'shrink',
+    height: 1,
     content: 'STATUS UP HERE',
     valign: 'center',
   })
   screen.chatLog = blessed.log({
     parent: screen,
-    top: 2,
-    // bottom: '0%+3',
+    top: 1,
     left: 0,
     right: 0,
     width: '100%',
-    height: '100%-5',
+    height: '100%-1',
     content: (
       Array(screen.height - banner.length - 1).fill('\n').join('') +
       '{green-fg}' + banner.join('\n') + '{/}\n'
@@ -272,7 +271,7 @@ function createTerminalScreen(){
   screen.appendChatLog = msg => screen.chatLog.log(msg)
 
   screen.showInputBox = () => {
-    // screen.chatLog.height = '80%'
+    screen.chatLog.height = '100%-4'
     screen.inputBox = blessed.textbox({
       top: '100%-3',
       left: 0,
