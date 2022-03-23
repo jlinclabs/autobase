@@ -86,40 +86,24 @@ function createTerminalScreen(){
     }
   })
 
-
-  screen.setChatLog = loglines => screen.chatLog.setContent(loglines, false, false)
-  // screen.setChatLog = loglines => { throw new Error(`${inspect(screen.chatLog.content)}`) }
-  screen.clearChatLog = () => screen.chatLog.setContent('')
   screen.appendChatLog = msg => screen.chatLog.log(msg)
 
   screen.showInputBox = () => {
     screen.chatLog.height = '90%'
     inputBox = blessed.textbox({
-      // title: 'new chat message',
       top: '90%',
       left: '0',
       right: '0',
       bottom: '0',
       width: '100%',
-      // height: 'shrink',
-      // height: '10%',
-      // height: `10%`,
       height: `shrink`,
-      // height: '10',
-      // rows: 13,
       shadow: true,
       inputOnFocus: true,
-      // content: `${username}> `,
       content: '',
-      // tags: true,
-      border: {
-        type: 'line'
-      },
-      style: {
-        fg: 'white',
-      }
+      tags: false,
+      border: { type: 'line' },
+      style: { fg: 'white' },
     })
-    // screen.append(inputBox)
     inputBox.key('C-c', disconnect);
 
     inputBox.key('enter', function(ch, key){
@@ -127,19 +111,12 @@ function createTerminalScreen(){
       if (!msg || msg.trim() === '') return
       sendNewMessage(msg)
       inputBox.clearValue()
-      screen.render();
-      focusInputBox()
+      screen.render()
+      inputBox.focus()
     })
 
-
     screen.append(inputBox)
-    focusInputBox()
-
-    function focusInputBox(){
-      inputBox.focus()
-      // inputBox.readInput()
-      screen.render()
-    }
+    inputBox.focus()
   }
 
   screen.hideInputBox = () => {
@@ -172,15 +149,13 @@ async function debug(...msgs){
 
 async function connect() {
   log(`connecting as ${username}...`)
-
   // persist cores per user but assume stored per app in the real world
   const STATE_DIR =`${__dirname}/state/${username}`
+  debug(`hypercores stored in ` + STATE_DIR)
 
   corestore = new Corestore(STATE_DIR)
   swarm = new Hyperswarm()
-
   // await corestore.ready()
-
 
   // Setup corestore replication
   swarm.on('connection', (socket) => {
@@ -199,18 +174,9 @@ async function connect() {
   swarm.join(topicCore.discoveryKey)
   // swarm.join(topic, { server: false, client: true })
 
-  // this is slow :(
-  // // Make sure we have all the connections
-  // await swarm.flush()
+  // Make sure we have all the connections
+  // await swarm.flush() // ¿ Do we need to wait for this? It's slow
   swarm.flush().then(() => { debug('connected to swarm!') })
-
-  // log('topicCore', await coreToArray(topicCore))
-
-
-  // Make sure we have the latest length
-  await topicCore.update()
-  // log('topicCore', topicCore)
-  // log('topicCore', await coreToArray(topicCore))
 
   // get corestores for all our users
   for (const username in users){
@@ -236,13 +202,10 @@ async function updateAllUserCores(){
   await Promise.all(cores.map(core => core.update()))
 }
 
-// async function rerenderNewChatLogEntires(){
-//   screen.clearChatLog()
-//   renderNewChatLogEntires()
-// }
-
 let mostRecentChatAt = 0
 async function renderNewChatLogEntires(){
+  // TODO replace this with an instance of Autobase
+
   let entries = []
   for (const username in users){
     const { core } = users[username]
@@ -251,15 +214,18 @@ async function renderNewChatLogEntires(){
       entries.push({...entry, username})
   }
   entries = entries
-    .filter(e => !!e.at)
-    // remove logs that we've already rendered
-    // note: timestamp approach has edge-case bugs
-    .filter(e => e.at > mostRecentChatAt)
-    .sort((a, b) => {
-      a = a.at
-      b = b.at
-      return a < b ? -1 : a > b ? 1 : 0
-    })
+    // filter out logs that we've already rendered
+    // NOTE: using a timestamp approach fails to
+    //       handle edge-case of identically
+    //       timed messages
+    .filter(e =>  e.at && e.at > mostRecentChatAt)
+    .sort((a, b) => (
+      a.at < b.at ? -1 :
+      a.at > b.at ? 1 :
+      a.username < b.username ? -1 :
+      a.username > b.username ? 1 :
+      0
+    ))
 
   if (entries.length === 0) return
   mostRecentChatAt = entries[entries.length - 1].at
