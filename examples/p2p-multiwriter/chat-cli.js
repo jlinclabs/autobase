@@ -28,16 +28,17 @@ let screen
 let corestore
 let swarm
 let topicCore
+let newMessagePollingTimeoutId
 
 async function main(){
   createTerminalScreen()
   await connect()
   await updateAllUserCores()
-  // checkForNewMessages()
-  await renderChatLogEntires()
+  checkForNewMessages()
+  // ¿ Can this polling be replaced with "live" replacation ?
+  newMessagePollingTimeoutId = setInterval(checkForNewMessages, 200)
+  await renderNewChatLogEntires()
   screen.showInputBox()
-  // setInterval(checkForNewMessages, 200)
-  log('ready')
 }
 
 main().catch(error => {
@@ -86,8 +87,8 @@ function createTerminalScreen(){
   })
 
 
-  // screen.setChatLog = loglines => screen.chatLog.setRows(loglines)
-  screen.setChatLog = loglines => { throw new Error(`${inspect(screen.setChatLog)}`) }
+  screen.setChatLog = loglines => screen.chatLog.setContent(loglines, false, false)
+  // screen.setChatLog = loglines => { throw new Error(`${inspect(screen.chatLog.content)}`) }
   screen.clearChatLog = () => screen.chatLog.setContent('')
   screen.appendChatLog = msg => screen.chatLog.log(msg)
 
@@ -122,7 +123,9 @@ function createTerminalScreen(){
     inputBox.key('C-c', disconnect);
 
     inputBox.key('enter', function(ch, key){
-      sendNewMessage(inputBox.value)
+      const msg = inputBox.value
+      if (!msg || msg.trim() === '') return
+      sendNewMessage(msg)
       inputBox.clearValue()
       screen.render();
       focusInputBox()
@@ -167,8 +170,6 @@ async function debug(...msgs){
   )
 }
 
-
-
 async function connect() {
   log(`connecting as ${username}...`)
 
@@ -183,10 +184,11 @@ async function connect() {
 
   // Setup corestore replication
   swarm.on('connection', (socket) => {
-    log('New connection from', socket.remotePublicKey.toString('hex'))
+    debug('new peer connection from' + socket.remotePublicKey.toString('hex'))
     // console.log("REPLCIATE" + store.replicate)
     corestore.replicate(socket, {
       keepAlive: true,
+      // live?
     })
   })
 
@@ -200,6 +202,7 @@ async function connect() {
   // this is slow :(
   // // Make sure we have all the connections
   // await swarm.flush()
+  swarm.flush().then(() => { debug('connected to swarm!') })
 
   // log('topicCore', await coreToArray(topicCore))
 
@@ -233,12 +236,13 @@ async function updateAllUserCores(){
   await Promise.all(cores.map(core => core.update()))
 }
 
-async function rerenderChatLogEntires(){
-  screen.clearChatLog()
-  renderChatLogEntires()
-}
+// async function rerenderNewChatLogEntires(){
+//   screen.clearChatLog()
+//   renderNewChatLogEntires()
+// }
 
-async function renderChatLogEntires(){
+let mostRecentChatAt = 0
+async function renderNewChatLogEntires(){
   let entries = []
   for (const username in users){
     const { core } = users[username]
@@ -248,16 +252,18 @@ async function renderChatLogEntires(){
   }
   entries = entries
     .filter(e => !!e.at)
+    // remove logs that we've already rendered
+    // note: timestamp approach has edge-case bugs
+    .filter(e => e.at > mostRecentChatAt)
     .sort((a, b) => {
       a = a.at
       b = b.at
       return a < b ? -1 : a > b ? 1 : 0
     })
-    .map(chatLogEntryToScreenLog)
 
-  screen.setChatLog(entries)
-  // for (const entry of entries) renderChatLogEntry(entry)
-  // return entries
+  if (entries.length === 0) return
+  mostRecentChatAt = entries[entries.length - 1].at
+  for (const entry of entries) screen.appendChatLog(chatLogEntryToScreenLog(entry))
 }
 
 function chatLogEntryToScreenLog(e){
@@ -278,6 +284,7 @@ function chatLogEntryToScreenLog(e){
     `{blue-fg}${ours ? '{bold}' : ''}${e.username}{/}` +
     `{white-fg}:{/} ` + (
       e.connected ? '{grey-fg}[connected]' :
+      e.disconnected ? '{grey-fg}[disconnected]' :
       `{white-fg}${e.message}`
     ) + `{/}`
   )
@@ -292,7 +299,8 @@ async function checkForNewMessages(){
     await core.update()
     if (!reRender && core.length > lastLength) reRender = true
   }))
-  if (reRender) await rerenderChatLogEntires()
+  // if (reRender) await renderNewChatLogEntires()
+  await renderNewChatLogEntires()
 }
 
 async function appendToUserCore(...messages){
@@ -302,8 +310,9 @@ async function appendToUserCore(...messages){
 }
 
 async function sendNewMessage(message){
-  const [sentMessage] = await appendToUserCore({ message })
-  await renderChatLogEntry({...sentMessage, username})
+  await appendToUserCore({ message })
+  await user.core.update()
+  await renderNewChatLogEntires()
 }
 
 async function disconnect() {
@@ -313,21 +322,13 @@ async function disconnect() {
 }
 
 async function shutdown() {
+  clearTimeout(newMessagePollingTimeoutId)
   screen.hideInputBox()
   log('shutting down…')
   await swarm.destroy()
   await corestore.close()
   screen.destroy()
 }
-
-
-
-
-
-function sha256 (inp) {
-  return crypto.createHash('sha256').update(inp).digest('hex')
-}
-
 
 async function coreToArray(core){
   const array = []
@@ -338,31 +339,4 @@ async function coreToArray(core){
 
 const serialize = payload => JSON.stringify(payload)
 const deserialize = msg => JSON.parse(msg)
-
-
-
-
-// helpers taken from hypercore-autobase/test
-
-async function causalValues (base) {
-  return collect(base.createCausalStream())
-}
-
-async function collect (stream, map) {
-  const buf = []
-  for await (const node of stream) {
-    buf.push(map ? map(node) : node)
-  }
-  return buf
-}
-
-async function linearizedValues (index) {
-  const buf = []
-  await index.update()
-  for (let i = index.length - 1; i >= 0; i--) {
-    const indexNode = await index.get(i)
-    buf.push(indexNode)
-  }
-  return buf
-}
 
