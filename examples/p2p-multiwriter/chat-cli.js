@@ -29,48 +29,16 @@ let corestore
 let swarm
 let topicCore
 
-async function main() {
+async function main(){
   createTerminalScreen()
-
+  debug('start')
   await connect()
-
-  await loadCoresForEachUser()
-
-  const append = async payload =>
-    await users[username].core.append([ serialize(payload) ])
-
-  await append({ connected: true, at: Date.now() })
-
-  process.once('SIGINT', () => {
-    append({ disconnected: Date.now() })
-  })
-
-  setInterval(checkForNewMessages, 200)
-
-  renderChatLogEntires()
+  await updateAllUserCores()
+  // checkForNewMessages()
+  await renderChatLogEntires()
   screen.showInputBox()
-
-  screen.on('newChatMessage', message => {
-    append({ message, at: Date.now() })
-      .then(renderChatLogEntires)
-  })
-  // while (true) {
-  //   const { message } = await prompt.get({
-  //     description: `${username}>`,
-  //     name: 'message',
-  //     type: 'string',
-  //     pattern: /^.+$/,
-  //     message: 'a chat message',
-  //     required: false,
-  //   })
-  //   log({ message })
-
-  //   for (const logEntry of await renderChatLogEntires()){
-  //     log(logEntry)
-  //   }
-
-  //   await append({ message, at: Date.now() })
-  // }
+  // setInterval(checkForNewMessages, 200)
+  log('ready')
 }
 
 main().catch(error => {
@@ -119,6 +87,7 @@ function createTerminalScreen(){
   })
 
   screen.setChatLog = content => chatLog.setContent(content)
+  screen.clearChatLog = () => screen.setChatLog('')
   screen.appendChatLog = msg => chatLog.log(msg)
 
   screen.showInputBox = () => {
@@ -152,13 +121,13 @@ function createTerminalScreen(){
     inputBox.key('C-c', disconnect);
 
     inputBox.key('enter', function(ch, key){
-      const message = inputBox.value
-      screen.emit('newChatMessage', message);
-      // log(message);
+      sendNewMessage(inputBox.value)
       inputBox.clearValue()
       screen.render();
       focusInputBox()
     })
+
+
     screen.append(inputBox)
     focusInputBox()
 
@@ -180,10 +149,21 @@ function createTerminalScreen(){
 
 async function log(...msgs){
   msgs.forEach(msg => {
-    screen.appendChatLog(
-      typeof msg === 'string' ? msg : inspect(msg, {colorize: true})
-    )
+    screen.appendChatLog(msg)
   })
+}
+
+async function debug(...msgs){
+  log(
+    `{grey-fg}[debug]{/} ` +
+    msgs
+      .map(msg =>
+        typeof msg === 'string'
+          ? `{grey-fg}${msg}{/}`
+          : inspect(msg, {colorize: true})
+      )
+      .join(' ')
+  )
 }
 
 
@@ -225,14 +205,8 @@ async function connect() {
 
   // Make sure we have the latest length
   await topicCore.update()
-  log('topicCore', topicCore)
-  log('topicCore', await coreToArray(topicCore))
-
-  log(`connected as ${username}`)
-}
-
-async function loadCoresForEachUser(){
-  log('loading messages...')
+  // log('topicCore', topicCore)
+  // log('topicCore', await coreToArray(topicCore))
 
   // get corestores for all our users
   for (const username in users){
@@ -246,22 +220,28 @@ async function loadCoresForEachUser(){
     // do we need to replicate here?
   }
 
-  // update all cores
-  //   (Autobase would do this for us)
-  await Promise.all(Object.values(users).map(user => user.core.update()))
-
-  for (const username in users){
-    log(username, await coreToArray(users[username].core))
-  }
-  log(`messages loaded!`)
+  log(`connected as ${username}`)
 }
 
+
+async function updateAllUserCores(){
+  const cores = Object.values(users).map(user => user.core)
+  debug(`updating all user cores length=${cores.length}`)
+  // update all cores
+  //   (Autobase would do this for us)
+  await Promise.all(cores.map(core => core.update()))
+}
+
+async function rerenderChatLogEntires(){
+  screen.clearChatLog()
+  renderChatLogEntires()
+}
 
 async function renderChatLogEntires(){
   let entries = []
   for (const username in users){
     const { core } = users[username]
-    await core.update()
+    // await core.update()
     for (const entry of await coreToArray(core))
       entries.push({...entry, username})
   }
@@ -273,70 +253,68 @@ async function renderChatLogEntires(){
       return a < b ? -1 : a > b ? 1 : 0
     })
 
-  for (const e of entries){
-    const date = new Date(e.at).toLocaleDateString(
-      'en-us',
-      {
-        year: 'numeric',
-        month: 'numeric',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: 'numeric',
-        hour12: true,
-      }
-    )
-    const ours = e.username === username
-    log(
-      `{grey-fg}${date}{/} | ` +
-      `{blue-fg}${ours ? '{bold}' : ''}${e.username}{/}` +
-      `{white-fg}:{/} ` + (
-        e.connected ? '{grey-fg}[connected]' :
-        `{white-fg}${e.message}`
-      ) + `{/}`
-    )
-  }
+  for (const entry of entries) renderChatLogEntry(entry)
   return entries
 }
 
-async function checkForNewMessages(){
-  // for (const username in users){
-  //   const user = users[username]
-  //   const lastCoreLength = user.core.length - 1
-  //   log(username, user.core)
-  //   await user.core.update()
-  //   // if (lastCoreLength < user.core.length){
-  //   //   while (let i = lastCoreLength; i <= user.core.length; i++) {
-  //   //     log()
-  //   //     we need to handle log messages better
-  //   //   }
-  //   // }
+function renderChatLogEntry(e){
+  const date = new Date(e.at).toLocaleDateString(
+    'en-us',
+    {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true,
+    }
+  )
+  const ours = e.username === username
+  log(
+    `{grey-fg}${date}{/} | ` +
+    `{blue-fg}${ours ? '{bold}' : ''}${e.username}{/}` +
+    `{white-fg}:{/} ` + (
+      e.connected ? '{grey-fg}[connected]' :
+      `{white-fg}${e.message}`
+    ) + `{/}`
+  )
+}
 
-  //   // log(username, user.core)
-  //   // TODO check the start/head of each core?
-  // }
+async function checkForNewMessages(){
   let reRender = false
-  await Promise.all(Object.values(users).map(async user => {
-    const lastLength = user.core.length
-    await user.core.update()
-    if (!reRender && user.core.length > lastLength) reRender = true
+  const cores = Object.values(users).map(user => user.core)
+  const newMessages = []
+  await Promise.all(cores.map(async core => {
+    const lastLength = core.length
+    await core.update()
+    if (!reRender && core.length > lastLength) reRender = true
   }))
-  if (reRender){
-    chatLog.setContent('')
-    renderChatLogEntires()
-  }
+  if (reRender) await rerenderChatLogEntires()
+}
+
+async function appendToUserCore(...messages){
+  messages = messages.map(msg => ({...msg, at: Date.now() }))
+  await user.core.append(...messages.map(serialize))
+  return messages
+}
+
+async function sendNewMessage(message){
+  const [sentMessage] = await appendToUserCore({ message })
+  await renderChatLogEntry({...sentMessage, username})
 }
 
 async function disconnect() {
-
+  log('disconnecting…')
+  await appendToUserCore({ disconnected: true })
+  await shutdown()
 }
 
 async function shutdown() {
-
   screen.hideInputBox()
   log('shutting down…')
   await swarm.destroy()
   await corestore.close()
-  await screen.destroy()
+  screen.destroy()
 }
 
 
