@@ -1,8 +1,7 @@
 import { dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { inspect } from 'util'
 
-import prompt from 'prompt'
-import ora from 'ora'
 import crypto from 'crypto'
 import Corestore from 'corestore'
 import Hypercore from 'hypercore'
@@ -39,12 +38,16 @@ screen.key(['escape', 'q', 'C-c'], function(ch, key) {
 })
 
 const chatLog = blessed.log({
+  title: 'Hypercore Chat Demo',
   top: '0',
   left: '0',
   right: '0',
   width: '100%',
-  height: '90%',
-  content: 'Loading chat message…',
+  // height: '100%-3',
+  height: '100%',
+  // height: '90%',
+  content: '',
+  content: ` ROWS ${screen.rows} ${screen.rows / 100}`,
   scrollOnInput: true,
   // tags: true,
   border: {
@@ -58,51 +61,63 @@ const chatLog = blessed.log({
     },
   }
 })
-screen.append(chatLog)
-
-const inputBox = blessed.textbox({
-  parent: screen,
-  top: '90%',
-  left: '0',
-  right: '0',
-  bottom: '0',
-  width: '100%',
-  height: '10%',
-  inputOnFocus: true,
-  content: `${username}> `,
-  // tags: true,
-  border: {
-    type: 'line'
-  },
-  style: {
-    fg: 'white',
-  }
-})
-screen.append(inputBox)
-
-screen.key('C-c', shutdown);
-inputBox.key('C-c', shutdown);
-
-const log = msg => chatLog.log(
-  typeof msg === 'string' ? msg : JSON.stringify(msg, {color: true})
+const log = (...msgs) => chatLog.log(
+  ...msgs.map(msg =>
+    typeof msg === 'string' ? msg : inspect(msg, {colorize: true})
+  )
 )
-
-inputBox.key('enter', function(ch, key){
-  const message = inputBox.value
-  log(message);
-  inputBox.clearValue()
-  screen.render();
-  focusInputBox()
-})
-
-function focusInputBox(){
-  inputBox.focus()
-  // inputBox.readInput()
-  screen.render()
-}
-
+screen.append(chatLog)
+screen.key('C-c', shutdown);
 screen.render()
-focusInputBox()
+
+let inputBox
+function renderInputBox(){
+  chatLog.height = '90%'
+  inputBox = blessed.textbox({
+    // title: 'new chat message',
+    parent: screen,
+    top: '90%',
+    left: '0',
+    right: '0',
+    bottom: '0',
+    width: '100%',
+    // height: 'shrink',
+    // height: '10%',
+    // height: `10%`,
+    height: `shrink`,
+    // height: '10',
+    // rows: 13,
+    shadow: true,
+    inputOnFocus: true,
+    // content: `${username}> `,
+    content: '',
+    // tags: true,
+    border: {
+      type: 'line'
+    },
+    style: {
+      fg: 'white',
+    }
+  })
+  screen.append(inputBox)
+  inputBox.key('C-c', shutdown);
+
+  inputBox.key('enter', function(ch, key){
+    const message = inputBox.value
+    inputBox.emit('newMessage', message);
+    // log(message);
+    inputBox.clearValue()
+    screen.render();
+    focusInputBox()
+  })
+
+  function focusInputBox(){
+    inputBox.focus()
+    // inputBox.readInput()
+    screen.render()
+  }
+  focusInputBox()
+}
 
 
 // import swarmKeypair from './swarm-keypair.js'
@@ -138,10 +153,6 @@ async function shutdown() {
 async function main() {
   // await corestore.ready()
 
-  // const spinner = ora()
-  // prompt.start()
-  // prompt.message = ''
-
   log(`connecting as ${username}...`)
 
 
@@ -155,12 +166,13 @@ async function main() {
   })
 
   const topicCore = corestore.get(TOPIC_KEY)
-  await topicCore.ready()
-  swarm.join(topicCore.discoveryKey)
-  // swarm.join(topic, { server: false, client: true })
+  log(`joining swarm topic ${TOPIC_KEY.toString('hex')}`)
 
-  // Make sure we have all the connections
-  await swarm.flush()
+  // await topicCore.ready()
+  // swarm.join(topicCore.discoveryKey)
+  // // swarm.join(topic, { server: false, client: true })
+  // // Make sure we have all the connections
+  // await swarm.flush()
 
 
   // Make sure we have the latest length
@@ -183,17 +195,17 @@ async function main() {
   // update all cores (Autobase does this now)
   await Promise.all(Object.values(users).map(user => user.core.update()))
 
-  for (const username in users){
-    log(username, await coreToArray(users[username].core))
-  }
+  // for (const username in users){
+  //   log(username, await coreToArray(users[username].core))
+  // }
 
-  chatLog.setContent(`connected as ${username}`)
+  log(`connected as ${username}`)
 
-  chatLog.setContent('loading messages...')
+  log('loading messages...')
 
   log('topicCore', await coreToArray(topicCore))
 
-  spinner.succeed(`messages loaded!`)
+  log(`messages loaded!`)
 
   const append = async payload =>
     await users[username].core.append([ serialize(payload) ])
@@ -214,30 +226,36 @@ async function main() {
     return entries
   }
 
-  while (true) {
+  renderInputBox()
 
-    const { message } = await prompt.get({
-      description: `${username}>`,
-      name: 'message',
-      type: 'string',
-      pattern: /^.+$/,
-      message: 'a chat message',
-      required: false,
-    })
-    log({ message })
+  inputBox.on('newMessage', message => {
+    append({ message, at: Date.now() })
+    log(message)
+  })
+  // while (true) {
+  //   const { message } = await prompt.get({
+  //     description: `${username}>`,
+  //     name: 'message',
+  //     type: 'string',
+  //     pattern: /^.+$/,
+  //     message: 'a chat message',
+  //     required: false,
+  //   })
+  //   log({ message })
 
-    for (const logEntry of await getChatLogEntires()){
-      log(logEntry)
-    }
+  //   for (const logEntry of await getChatLogEntires()){
+  //     log(logEntry)
+  //   }
 
-    await append({ message, at: Date.now() })
-  }
+  //   await append({ message, at: Date.now() })
+  // }
 }
 
-// main().catch(error => {
-//   console.error(error)
-//   process.exit(1)
-// })
+main().catch(error => {
+  shutdown()
+  console.error(error)
+  process.exit(1)
+})
 
 
 
@@ -248,8 +266,8 @@ function sha256 (inp) {
 
 async function coreToArray(core){
   const array = []
-  for (let i = index.length - 1; i >= 0; i--)
-    array[i] = deserialize(await index.get(i))
+  for (let i = core.length - 1; i >= 0; i--)
+    array[i] = deserialize(await core.get(i))
   return array
 }
 
