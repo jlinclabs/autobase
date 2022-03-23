@@ -87,7 +87,7 @@ function createTerminalScreen(){
 
 
   // screen.setChatLog = loglines => screen.chatLog.setRows(loglines)
-  screen.setChatLog = loglines => { throw new Error('xxx') }
+  screen.setChatLog = loglines => { throw new Error(`${inspect(screen.setChatLog)}`) }
   screen.clearChatLog = () => screen.chatLog.setContent('')
   screen.appendChatLog = msg => screen.chatLog.log(msg)
 
