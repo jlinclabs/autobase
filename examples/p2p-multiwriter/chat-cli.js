@@ -3,6 +3,7 @@ import { dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { inspect } from 'util'
 import blessed from 'blessed'
+import b4a from 'b4a'
 
 /* Hypercore packages */
 import Corestore from 'corestore'
@@ -65,7 +66,7 @@ async function connect() {
 
   // Setup corestore replication
   swarm.on('connection', (socket) => {
-    debug('new peer connection from ' + socket.remotePublicKey.toString('hex'))
+    debug('new peer connection from ' + toHex(socket.remotePublicKey))
     // console.log("REPLCIATE" + store.replicate)
     corestore.replicate(socket, {
       keepAlive: true,
@@ -75,7 +76,7 @@ async function connect() {
   })
 
   topicCore = corestore.get(TOPIC_KEY)
-  log(`joining swarm topic ${TOPIC_KEY.toString('hex')}`)
+  log(`joining swarm topic ${toHex(TOPIC_KEY)}`)
 
   await topicCore.ready()
   swarm.join(topicCore.discoveryKey)
@@ -89,15 +90,15 @@ async function connect() {
   for (const username in users){
     const { publicKey } = users[username]
     users[username].core = corestore.get({
-      key: Buffer.from(publicKey, 'hex'),
+      key: fromHex(publicKey),
       secretKey: user.publicKey === publicKey
-        ? Buffer.from(user.secretKey, 'hex')
+        ? fromHex(user.secretKey)
         : undefined,
     })
     // do we need to replicate here?
   }
 
-  await appendToUserCore({ connected: true })
+  // await appendToUserCore({ connected: true })
   log(`connected as ${username}`)
 }
 
@@ -114,10 +115,10 @@ async function renderNewChatLogEntires(){
 
   let entries = []
   for (const username in users){
-    const { core } = users[username]
+    const { publicKey, core } = users[username]
     // await core.update()
     for (const entry of await coreToArray(core))
-      entries.push({...entry, username})
+      entries.push({...entry, username, publicKey})
   }
   entries = entries
     // filter out logs that we've already rendered
@@ -175,6 +176,9 @@ async function shutdown() {
   screen.destroy()
 }
 
+function fromHex(str){ return str && b4a.from(str, 'hex') }
+function toHex(buf){ return buf && b4a.toString(buf, 'hex') }
+
 async function coreToArray(core){
   const array = []
   for (let i = core.length - 1; i >= 0; i--)
@@ -182,8 +186,8 @@ async function coreToArray(core){
   return array
 }
 
-const serialize = payload => JSON.stringify(payload)
-const deserialize = msg => JSON.parse(msg)
+function serialize(payload){ return JSON.stringify(payload) }
+function deserialize(msg){ return JSON.parse(msg) }
 
 /*
   Terminal UI functions:
@@ -204,6 +208,7 @@ function chatLogEntryToScreenLog(e){
   const ours = e.username === username
   return (
     `{grey-fg}${date}{/} | ` +
+    `{grey-fg}${truncate(e.publicKey)}{/} | ` +
     `{blue-fg}${ours ? '{bold}' : ''}${e.username}{/}` +
     `{white-fg}:{/} ` + (
       e.connected ? '{grey-fg}[connected]' :
@@ -211,6 +216,10 @@ function chatLogEntryToScreenLog(e){
       `{white-fg}${e.message}`
     ) + `{/}`
   )
+}
+
+function truncate(string){
+  return string.slice(0, 4) + '…' + string.slice(-5, -1)
 }
 
 function createTerminalScreen(){
@@ -298,3 +307,5 @@ async function debug(...msgs){
       .join(' ')
   )
 }
+
+
