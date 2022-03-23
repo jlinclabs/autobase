@@ -86,8 +86,8 @@ function createTerminalScreen(){
     }
   })
 
-  screen.setChatLog = content => chatLog.setContent(content)
-  screen.clearChatLog = () => screen.setChatLog('')
+  screen.setChatLog = loglines => chatLog.setData(loglines)
+  screen.clearChatLog = () => chatLog.setContent('')
   screen.appendChatLog = msg => chatLog.log(msg)
 
   screen.showInputBox = () => {
@@ -252,12 +252,14 @@ async function renderChatLogEntires(){
       b = b.at
       return a < b ? -1 : a > b ? 1 : 0
     })
+    .map(chatLogEntryToScreenLog)
 
-  for (const entry of entries) renderChatLogEntry(entry)
-  return entries
+  screen.setChatLog(entries)
+  // for (const entry of entries) renderChatLogEntry(entry)
+  // return entries
 }
 
-function renderChatLogEntry(e){
+function chatLogEntryToScreenLog(e){
   const date = new Date(e.at).toLocaleDateString(
     'en-us',
     {
@@ -270,7 +272,7 @@ function renderChatLogEntry(e){
     }
   )
   const ours = e.username === username
-  log(
+  return (
     `{grey-fg}${date}{/} | ` +
     `{blue-fg}${ours ? '{bold}' : ''}${e.username}{/}` +
     `{white-fg}:{/} ` + (
