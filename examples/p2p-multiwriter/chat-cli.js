@@ -145,7 +145,7 @@ const corestore = new Corestore(STATE_DIR)
 const swarm = new Hyperswarm()
 
 async function shutdown() {
-  chatLog.destroy()
+  screen.remove(chatLog)
   log('shutting down…')
   await swarm.destroy()
   await corestore.close()
