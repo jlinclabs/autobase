@@ -49,6 +49,119 @@ main().catch(error => {
   process.exit(1)
 })
 
+/*
+  Hypercore functions:
+*/
+async function updateAllUserCores(){
+  // NOTE: Autobase would do this for us
+  const cores = Object.values(users).map(user => user.core)
+  await Promise.all(cores.map(core => core.update()))
+}
+
+let lastRenderedEntry
+async function renderNewChatLogEntires(){
+  // TODO replace this with an instance of Autobase
+
+  let entries = []
+  for (const username in users){
+    const { core } = users[username]
+    // await core.update()
+    for (const entry of await coreToArray(core))
+      entries.push({...entry, username})
+  }
+  entries = entries
+    // filter out logs that we've already rendered
+    // NOTE: using a timestamp approach fails to
+    //       handle edge-case of identically
+    //       timed messages
+    .filter(e =>  e.at)
+    .sort((a, b) => (
+      a.at < b.at ? -1 :
+      a.at > b.at ? 1 :
+      a.username < b.username ? -1 :
+      a.username > b.username ? 1 :
+      0
+    ))
+    .filter(e =>
+      !lastRenderedEntry ||
+      e.at > lastRenderedEntry.at ||
+      (e.at === lastRenderedEntry.at && e.username !== lastRenderedEntry.username)
+    )
+
+  if (entries.length === 0) return
+  lastRenderedEntry = entries[entries.length - 1]
+  for (const entry of entries) screen.appendChatLog(chatLogEntryToScreenLog(entry))
+}
+
+function chatLogEntryToScreenLog(e){
+  const date = new Date(e.at).toLocaleDateString(
+    'en-us',
+    {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true,
+    }
+  )
+  const ours = e.username === username
+  return (
+    `{grey-fg}${date}{/} | ` +
+    `{blue-fg}${ours ? '{bold}' : ''}${e.username}{/}` +
+    `{white-fg}:{/} ` + (
+      e.connected ? '{grey-fg}[connected]' :
+      e.disconnected ? '{grey-fg}[disconnected]' :
+      `{white-fg}${e.message}`
+    ) + `{/}`
+  )
+}
+
+async function checkForNewMessages(){
+  await updateAllUserCores()
+  await renderNewChatLogEntires()
+}
+
+async function appendToUserCore(...messages){
+  messages = messages.map(msg => ({...msg, at: Date.now() }))
+  await user.core.append(...messages.map(serialize))
+  return messages
+}
+
+async function sendNewMessage(message){
+  await appendToUserCore({ message })
+  await user.core.update()
+  await renderNewChatLogEntires()
+}
+
+async function disconnect() {
+  log('disconnecting…')
+  await appendToUserCore({ disconnected: true })
+  await shutdown()
+}
+
+async function shutdown() {
+  clearTimeout(newMessagePollingTimeoutId)
+  screen.hideInputBox()
+  log('shutting down…')
+  await swarm.destroy()
+  await corestore.close()
+  screen.destroy()
+}
+
+async function coreToArray(core){
+  const array = []
+  for (let i = core.length - 1; i >= 0; i--)
+    array[i] = deserialize(await core.get(i))
+  return array
+}
+
+const serialize = payload => JSON.stringify(payload)
+const deserialize = msg => JSON.parse(msg)
+
+/*
+  Terminal UI functions:
+*/
 
 function createTerminalScreen(){
   screen = blessed.screen({
@@ -183,108 +296,3 @@ async function connect() {
   await appendToUserCore({ connected: true })
   log(`connected as ${username}`)
 }
-
-
-async function updateAllUserCores(){
-  const cores = Object.values(users).map(user => user.core)
-  // update all cores
-  //   (Autobase would do this for us)
-  await Promise.all(cores.map(core => core.update()))
-}
-
-let mostRecentChatAt = 0
-async function renderNewChatLogEntires(){
-  // TODO replace this with an instance of Autobase
-
-  let entries = []
-  for (const username in users){
-    const { core } = users[username]
-    // await core.update()
-    for (const entry of await coreToArray(core))
-      entries.push({...entry, username})
-  }
-  entries = entries
-    // filter out logs that we've already rendered
-    // NOTE: using a timestamp approach fails to
-    //       handle edge-case of identically
-    //       timed messages
-    .filter(e =>  e.at && e.at > mostRecentChatAt)
-    .sort((a, b) => (
-      a.at < b.at ? -1 :
-      a.at > b.at ? 1 :
-      a.username < b.username ? -1 :
-      a.username > b.username ? 1 :
-      0
-    ))
-
-  if (entries.length === 0) return
-  mostRecentChatAt = entries[entries.length - 1].at
-  for (const entry of entries) screen.appendChatLog(chatLogEntryToScreenLog(entry))
-}
-
-function chatLogEntryToScreenLog(e){
-  const date = new Date(e.at).toLocaleDateString(
-    'en-us',
-    {
-      year: 'numeric',
-      month: 'numeric',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-      hour12: true,
-    }
-  )
-  const ours = e.username === username
-  return (
-    `{grey-fg}${date}{/} | ` +
-    `{blue-fg}${ours ? '{bold}' : ''}${e.username}{/}` +
-    `{white-fg}:{/} ` + (
-      e.connected ? '{grey-fg}[connected]' :
-      e.disconnected ? '{grey-fg}[disconnected]' :
-      `{white-fg}${e.message}`
-    ) + `{/}`
-  )
-}
-
-async function checkForNewMessages(){
-  await updateAllUserCores()
-  await renderNewChatLogEntires()
-}
-
-async function appendToUserCore(...messages){
-  messages = messages.map(msg => ({...msg, at: Date.now() }))
-  await user.core.append(...messages.map(serialize))
-  return messages
-}
-
-async function sendNewMessage(message){
-  await appendToUserCore({ message })
-  await user.core.update()
-  await renderNewChatLogEntires()
-}
-
-async function disconnect() {
-  log('disconnecting…')
-  await appendToUserCore({ disconnected: true })
-  await shutdown()
-}
-
-async function shutdown() {
-  clearTimeout(newMessagePollingTimeoutId)
-  screen.hideInputBox()
-  log('shutting down…')
-  await swarm.destroy()
-  await corestore.close()
-  screen.destroy()
-}
-
-async function coreToArray(core){
-  const array = []
-  for (let i = core.length - 1; i >= 0; i--)
-    array[i] = deserialize(await core.get(i))
-  return array
-}
-
-const serialize = payload => JSON.stringify(payload)
-const deserialize = msg => JSON.parse(msg)
-
