@@ -159,12 +159,13 @@ async function connect() {
 
   // Setup corestore replication
   swarm.on('connection', (socket) => {
-    debug('new peer connection from' + socket.remotePublicKey.toString('hex'))
+    debug('new peer connection from ' + socket.remotePublicKey.toString('hex'))
     // console.log("REPLCIATE" + store.replicate)
     corestore.replicate(socket, {
       keepAlive: true,
       // live?
     })
+    checkForNewMessages()
   })
 
   topicCore = corestore.get(TOPIC_KEY)
@@ -190,13 +191,13 @@ async function connect() {
     // do we need to replicate here?
   }
 
+  await appendToUserCore({ connected: true })
   log(`connected as ${username}`)
 }
 
 
 async function updateAllUserCores(){
   const cores = Object.values(users).map(user => user.core)
-  debug(`updating all user cores (${cores.length})`)
   // update all cores
   //   (Autobase would do this for us)
   await Promise.all(cores.map(core => core.update()))
@@ -257,15 +258,7 @@ function chatLogEntryToScreenLog(e){
 }
 
 async function checkForNewMessages(){
-  let reRender = false
-  const cores = Object.values(users).map(user => user.core)
-  const newMessages = []
-  await Promise.all(cores.map(async core => {
-    const lastLength = core.length
-    await core.update()
-    if (!reRender && core.length > lastLength) reRender = true
-  }))
-  // if (reRender) await renderNewChatLogEntires()
+  await updateAllUserCores()
   await renderNewChatLogEntires()
 }
 
