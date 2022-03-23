@@ -41,6 +41,7 @@ async function main(){
   // ¿ Can this polling be replaced with "live" replacation ?
   newMessagePollingTimeoutId = setInterval(checkForNewMessages, 200)
   await renderNewChatLogEntires()
+  await appendToUserCore({ connected: true })
   screen.showInputBox()
 }
 
@@ -98,8 +99,6 @@ async function connect() {
     })
     // do we need to replicate here?
   }
-
-  await appendToUserCore({ connected: true })
   log(`connected as ${username}`)
 }
 
@@ -239,7 +238,7 @@ function createTerminalScreen(){
   })
   screen.title = 'Hypercore Chat Example'
 
-  screen.key(['escape', 'q', 'C-c'], disconnect)
+  screen.key(['escape', 'q', 'C-c', 'C-d'], disconnect)
 
   const banner = readFileSync('./banner.txt').toString().split('\n')
   screen.chatLog = blessed.log({
@@ -280,7 +279,7 @@ function createTerminalScreen(){
       border: { type: 'line' },
       style: { fg: 'white' },
     })
-    screen.inputBox.key('C-c', disconnect);
+    screen.inputBox.key(['C-c', 'C-d'], disconnect);
 
     screen.inputBox.key('enter', function(ch, key){
       const msg = screen.inputBox.value
