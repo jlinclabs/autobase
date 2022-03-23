@@ -145,9 +145,11 @@ const corestore = new Corestore(STATE_DIR)
 const swarm = new Hyperswarm()
 
 async function shutdown() {
-  screen.destroy()
-  swarm.destroy()
-  corestore.close()
+  chatLog.destroy()
+  log('shutting down…')
+  await swarm.destroy()
+  await corestore.close()
+  await screen.destroy()
 }
 
 async function main() {
@@ -208,7 +210,7 @@ async function main() {
   const append = async payload =>
     await users[username].core.append([ serialize(payload) ])
 
-  await append({ connected: Date.now() })
+  await append({ connected: true, at: Date.now() })
 
   process.once('SIGINT', () => {
     append({ disconnected: Date.now() })
@@ -217,9 +219,10 @@ async function main() {
   async function renderChatLogEntires(){
     let entries = []
     for (const username in users){
-      for (const entry of await coreToArray(users[username].core)){
+      const { core } = users[username]
+      await core.update()
+      for (const entry of await coreToArray(core))
         entries.push({...entry, username})
-      }
     }
     entries = entries.sort((a, b) => {
       a = a.at
@@ -228,18 +231,57 @@ async function main() {
     })
 
     for (const e of entries){
-      log(`(${e.at}) ${e.username}> ${e.connected ? '[connected]' : e.message}`)
+      const date = new Date(e.at).toLocaleDateString(
+        'en-us',
+        {
+          year: 'numeric',
+          month: 'numeric',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: 'numeric',
+          hour12: true,
+        }
+      )
+      log(`(${date}) ${e.username}> ${e.connected ? '[connected]' : e.message}`)
     }
     return entries
   }
+
+  async function checkForNewMessages(){
+    // for (const username in users){
+    //   const user = users[username]
+    //   const lastCoreLength = user.core.length - 1
+    //   log(username, user.core)
+    //   await user.core.update()
+    //   // if (lastCoreLength < user.core.length){
+    //   //   while (let i = lastCoreLength; i <= user.core.length; i++) {
+    //   //     log()
+    //   //     we need to handle log messages better
+    //   //   }
+    //   // }
+
+    //   // log(username, user.core)
+    //   // TODO check the start/head of each core?
+    // }
+    let reRender = false
+    await Promise.all(Object.values(users).map(async user => {
+      const lastLength = user.core.length
+      await user.core.update()
+      if (!reRender && user.core.length > lastLength) reRender = true
+    }))
+    if (reRender){
+      chatLog.setContent('')
+      renderChatLogEntires()
+    }
+  }
+  setInterval(checkForNewMessages, 200)
 
   renderChatLogEntires()
   renderInputBox()
 
   inputBox.on('newMessage', message => {
     append({ message, at: Date.now() })
-    // log(message)
-    renderChatLogEntires()
+      .then(renderChatLogEntires)
   })
   // while (true) {
   //   const { message } = await prompt.get({
