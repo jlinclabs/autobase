@@ -10,9 +10,9 @@ import Corestore from 'corestore'
 import Hyperswarm from 'hyperswarm'
 
 /* data that would normally be in disparate app databases */
-import TOPIC_KEY from './topic.js'
 import users from './users.js'
 
+const TOPIC_KEY = fromHex('604d03ea2045c1adfcb6adad02d71667e03c27ec846fe4f5c4d912c10464aea0')
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const username = process.argv[2]
