@@ -237,7 +237,7 @@ function createTerminalScreen(){
     right: '0',
     width: '100%',
     height: '100%',
-    content: '',
+    content: Array(screen.height).fill('\n').join(''),
     scrollOnInput: true,
     tags: true,
     border: { type: 'line' },
