@@ -3,7 +3,7 @@
 This example aims to show how to setup a basic
 peer-to-peer mutliwriter using Hypercore 10.
 
-![example](./example.gif)
+![example](https://user-images.githubusercontent.com/8385/159972114-e06dcc52-4ca8-4d4b-84aa-583995c10844.gif)
 
 The `chat-cli.js` "app" runs in the terminal as
 one of N users in the `users.js` file.
